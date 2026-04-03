@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidLesson(data) {
+      return data.title is string && data.title.size() > 0 &&
+             data.script is string && data.script.size() > 0 &&
+             data.vocabulary is list &&
+             data.steps is map &&
+             data.teacherId is string &&
+             data.createdAt is string;
+    }
+
+    function isValidResult(data) {
+      return data.lessonId is string &&
+             data.studentName is string && data.studentName.size() > 0 &&
+             data.score is number &&
+             data.details is map &&
+             data.completedAt is string;
+    }
+
+    match /lessons/{lessonId} {
+      allow read: if true; // Lessons are public for students with the link
+      allow create: if isAuthenticated() && isValidLesson(request.resource.data);
+      allow update, delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
+    }
+
+    match /results/{resultId} {
+      allow read: if isAuthenticated(); // Teachers can read results
+      allow create: if true; // Students can submit results without auth
+      allow update, delete: if false;
+    }
+  }
+}

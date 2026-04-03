@@ -1,0 +1,7 @@
+{
+  "name": "English Listening Scaffolding AI",
+  "description": "An AI-powered teaching assistant that creates 4-step scaffolding lessons for English listening skills based on scripts and vocabulary.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

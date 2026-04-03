@@ -1,0 +1,42 @@
+{
+  "entities": {
+    "Lesson": {
+      "title": "Lesson",
+      "description": "A listening scaffolding lesson created by a teacher.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the lesson" },
+        "script": { "type": "string", "description": "The full listening script" },
+        "vocabulary": { "type": "array", "items": { "type": "object" }, "description": "Target vocabulary with definitions and IPA" },
+        "steps": { "type": "object", "description": "The 4-step scaffolding content" },
+        "teacherId": { "type": "string", "description": "UID of the teacher who created the lesson" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the lesson was created" }
+      },
+      "required": ["title", "script", "vocabulary", "steps", "teacherId", "createdAt"]
+    },
+    "Result": {
+      "title": "Result",
+      "description": "A student's result for a specific lesson.",
+      "type": "object",
+      "properties": {
+        "lessonId": { "type": "string", "description": "ID of the lesson" },
+        "studentName": { "type": "string", "description": "Name of the student" },
+        "studentId": { "type": "string", "description": "Optional ID of the student" },
+        "score": { "type": "number", "description": "Total score out of 10" },
+        "details": { "type": "object", "description": "Detailed performance in each step" },
+        "completedAt": { "type": "string", "format": "date-time", "description": "When the lesson was completed" }
+      },
+      "required": ["lessonId", "studentName", "score", "details", "completedAt"]
+    }
+  },
+  "firestore": {
+    "/lessons/{lessonId}": {
+      "schema": "Lesson",
+      "description": "Collection of lessons"
+    },
+    "/results/{resultId}": {
+      "schema": "Result",
+      "description": "Collection of student results"
+    }
+  }
+}
