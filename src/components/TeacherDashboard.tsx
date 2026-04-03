@@ -38,7 +38,7 @@ export default function TeacherDashboard() {
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold text-slate-900">Your Lessons</h2>
+          <h2 className="text-3xl font-bold text-slate-900">Welcome, {auth.currentUser?.displayName}!</h2>
           <p className="text-slate-500">Manage and track your listening scaffolding lessons.</p>
         </div>
         <Link 

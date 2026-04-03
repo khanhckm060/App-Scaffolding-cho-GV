@@ -21,12 +21,24 @@ export default function App() {
     return unsubscribe;
   }, []);
 
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const login = async () => {
+    setIsLoggingIn(true);
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login failed:", error);
+      if (error.code === 'auth/unauthorized-domain') {
+        alert("Domain này chưa được cấp phép trong Firebase Console. Vui lòng thêm '" + window.location.hostname + "' vào danh sách 'Authorized domains' trong Firebase Authentication.");
+      } else if (error.code === 'auth/popup-blocked') {
+        alert("Trình duyệt đã chặn cửa sổ đăng nhập. Vui lòng cho phép hiện popup và thử lại.");
+      } else {
+        alert("Đăng nhập thất bại: " + error.message);
+      }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -62,6 +74,10 @@ export default function App() {
                       Teacher Dashboard
                     </Link>
                     <div className="flex items-center space-x-3 pl-4 border-l border-slate-200">
+                      <div className="hidden sm:flex flex-col items-end mr-1">
+                        <span className="text-xs font-bold text-slate-900">{user.displayName}</span>
+                        <span className="text-[10px] text-slate-500">{user.email}</span>
+                      </div>
                       <img src={user.photoURL || ''} alt="" className="w-8 h-8 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
                       <button 
                         onClick={() => signOut(auth)}
@@ -75,10 +91,15 @@ export default function App() {
                 ) : (
                   <button 
                     onClick={login}
-                    className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-all shadow-sm active:scale-95"
+                    disabled={isLoggingIn}
+                    className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-all shadow-sm active:scale-95 disabled:opacity-50"
                   >
-                    <LogIn className="w-4 h-4" />
-                    <span>Teacher Login</span>
+                    {isLoggingIn ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <LogIn className="w-4 h-4" />
+                    )}
+                    <span>{isLoggingIn ? 'Logging in...' : 'Teacher Login'}</span>
                   </button>
                 )}
               </div>
@@ -88,7 +109,7 @@ export default function App() {
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Routes>
-            <Route path="/" element={<Home user={user} login={login} />} />
+            <Route path="/" element={<Home user={user} login={login} isLoggingIn={isLoggingIn} />} />
             <Route path="/teacher" element={user ? <TeacherDashboard /> : <Navigate to="/" />} />
             <Route path="/teacher/new" element={user ? <LessonCreator /> : <Navigate to="/" />} />
             <Route path="/teacher/analytics/:lessonId" element={user ? <LessonAnalytics /> : <Navigate to="/" />} />
@@ -100,7 +121,7 @@ export default function App() {
   );
 }
 
-function Home({ user, login }: { user: User | null, login: () => void }) {
+function Home({ user, login, isLoggingIn }: { user: User | null, login: () => void, isLoggingIn: boolean }) {
   return (
     <div className="max-w-4xl mx-auto text-center py-12">
       <motion.div
@@ -135,10 +156,15 @@ function Home({ user, login }: { user: User | null, login: () => void }) {
         ) : (
           <button 
             onClick={login}
-            className="flex items-center space-x-3 bg-indigo-600 text-white px-10 py-5 rounded-2xl font-bold text-xl hover:bg-indigo-700 transition-all shadow-xl hover:shadow-indigo-200 active:scale-95 mx-auto"
+            disabled={isLoggingIn}
+            className="flex items-center space-x-3 bg-indigo-600 text-white px-10 py-5 rounded-2xl font-bold text-xl hover:bg-indigo-700 transition-all shadow-xl hover:shadow-indigo-200 active:scale-95 mx-auto disabled:opacity-50"
           >
-            <LogIn className="w-6 h-6" />
-            <span>Get Started as a Teacher</span>
+            {isLoggingIn ? (
+              <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <LogIn className="w-6 h-6" />
+            )}
+            <span>{isLoggingIn ? 'Logging in...' : 'Get Started as a Teacher'}</span>
           </button>
         )}
       </motion.div>
