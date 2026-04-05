@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { doc, getDoc, addDoc, collection } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Lesson, Result } from '../types';
@@ -8,16 +8,20 @@ import {
   Volume2, CheckCircle2, ArrowRight, Play, Pause, RotateCcw, 
   Check, X, Trophy, Share2, User, ChevronRight, ChevronLeft,
   Info, Type as TypeIcon, FileText, HelpCircle, BookOpen,
-  GraduationCap, Headphones
+  GraduationCap, Headphones, Mail
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { cn } from '../lib/utils';
 
 export default function StudentLesson() {
   const { lessonId } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const assignmentId = searchParams.get('assignmentId');
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [step, setStep] = useState(0); // 0: Intro, 1: Meaning, 2: Review, 3: Audio Practice, 4: Dictation, 5: Gap-fill, 6: MCQ, 7: Result
   const [studentName, setStudentName] = useState('');
+  const [studentEmail, setStudentEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [isSlow, setIsSlow] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
@@ -128,7 +132,10 @@ export default function StudentLesson() {
     const score = calculateScore();
     const result: Result = {
       lessonId,
+      assignmentId: assignmentId || undefined,
       studentName,
+      studentEmail,
+      teacherId: lesson.teacherId,
       score,
       details: {
         step1: true,
@@ -164,23 +171,33 @@ export default function StudentLesson() {
             <h1 className="text-4xl font-extrabold text-slate-900 mb-4">{lesson.title}</h1>
             <p className="text-slate-500 mb-10 text-lg">Welcome! Please enter your name to begin the lesson.</p>
             
-            <div className="max-w-sm mx-auto space-y-6">
+            <div className="max-w-sm mx-auto space-y-4">
               <div className="relative group">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                 <input 
                   type="text"
                   value={studentName}
                   onChange={(e) => setStudentName(e.target.value)}
-                  placeholder="Your Full Name"
+                  placeholder="Họ và tên của bạn"
+                  className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-lg font-medium"
+                />
+              </div>
+              <div className="relative group">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                <input 
+                  type="email"
+                  value={studentEmail}
+                  onChange={(e) => setStudentEmail(e.target.value)}
+                  placeholder="Email (Gmail)"
                   className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-lg font-medium"
                 />
               </div>
               <button 
-                onClick={() => studentName && setStep(1)}
-                disabled={!studentName}
+                onClick={() => studentName && studentEmail && setStep(1)}
+                disabled={!studentName || !studentEmail}
                 className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white py-4 rounded-xl font-bold text-xl hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
               >
-                <span>Start Lesson</span>
+                <span>Bắt đầu bài học</span>
                 <ArrowRight className="w-6 h-6" />
               </button>
               
@@ -722,14 +739,35 @@ export default function StudentLesson() {
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white p-12 rounded-3xl border border-slate-200 shadow-2xl text-center max-w-2xl mx-auto"
           >
-            <div className="bg-emerald-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8">
-              <Trophy className="w-12 h-12 text-emerald-600" />
-            </div>
-            <h2 className="text-4xl font-extrabold text-slate-900 mb-2">Well Done, {studentName}!</h2>
-            <p className="text-slate-500 mb-10 text-lg">You've completed the scaffolding lesson.</p>
+            {calculateScore() >= 8 ? (
+              <div className="bg-emerald-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8">
+                <Trophy className="w-12 h-12 text-emerald-600" />
+              </div>
+            ) : (
+              <div className="bg-amber-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8">
+                <RotateCcw className="w-12 h-12 text-amber-600" />
+              </div>
+            )}
             
-            <div className="bg-slate-50 p-8 rounded-3xl mb-10">
-              <div className="text-6xl font-black text-indigo-600 mb-2">{calculateScore()}</div>
+            <h2 className="text-4xl font-extrabold text-slate-900 mb-2">
+              {calculateScore() >= 8 ? `Chúc mừng, ${studentName}!` : `Cố gắng lên, ${studentName}!`}
+            </h2>
+            <p className="text-slate-500 mb-10 text-lg">
+              {calculateScore() >= 8 
+                ? "Bạn đã hoàn thành bài học xuất sắc và đạt yêu cầu." 
+                : "Bạn cần đạt ít nhất 8.0 điểm để hoàn thành bài tập này."}
+            </p>
+            
+            <div className={cn(
+              "p-8 rounded-3xl mb-10 transition-colors",
+              calculateScore() >= 8 ? "bg-emerald-50" : "bg-amber-50"
+            )}>
+              <div className={cn(
+                "text-6xl font-black mb-2",
+                calculateScore() >= 8 ? "text-emerald-600" : "text-amber-600"
+              )}>
+                {calculateScore()}
+              </div>
               <div className="text-sm font-bold text-slate-400 uppercase tracking-widest">Total Score</div>
             </div>
 
@@ -744,12 +782,28 @@ export default function StudentLesson() {
               </div>
             </div>
 
-            <button 
-              onClick={() => window.location.reload()}
-              className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-slate-800 transition-all active:scale-95"
-            >
-              Try Again
-            </button>
+            <div className="space-y-4">
+              <button 
+                onClick={() => window.location.reload()}
+                className={cn(
+                  "w-full py-4 rounded-xl font-bold text-lg transition-all active:scale-95",
+                  calculateScore() >= 8 
+                    ? "bg-slate-900 text-white hover:bg-slate-800" 
+                    : "bg-amber-600 text-white hover:bg-amber-700 shadow-lg shadow-amber-100"
+                )}
+              >
+                {calculateScore() >= 8 ? "Làm lại bài tập" : "Làm lại ngay (Bắt buộc)"}
+              </button>
+              
+              {calculateScore() >= 8 && (
+                <button 
+                  onClick={() => navigate('/student')}
+                  className="w-full bg-white text-slate-600 border border-slate-200 py-4 rounded-xl font-bold text-lg hover:bg-slate-50 transition-all active:scale-95"
+                >
+                  Quay lại Dashboard
+                </button>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

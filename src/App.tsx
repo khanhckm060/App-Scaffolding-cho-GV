@@ -3,10 +3,11 @@ import { useState, useEffect } from 'react';
 import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import TeacherDashboard from './components/TeacherDashboard';
+import StudentDashboard from './components/StudentDashboard';
 import LessonCreator from './components/LessonCreator';
 import StudentLesson from './components/StudentLesson';
 import LessonAnalytics from './components/LessonAnalytics';
-import { LogIn, LogOut, BookOpen, BarChart3, PlusCircle } from 'lucide-react';
+import { LogIn, LogOut, BookOpen, BarChart3, PlusCircle, GraduationCap, UserCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -111,6 +112,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home user={user} login={login} isLoggingIn={isLoggingIn} />} />
             <Route path="/teacher" element={user ? <TeacherDashboard /> : <Navigate to="/" />} />
+            <Route path="/student" element={<StudentDashboard />} />
             <Route path="/teacher/new" element={user ? <LessonCreator /> : <Navigate to="/" />} />
             <Route path="/teacher/analytics/:lessonId" element={user ? <LessonAnalytics /> : <Navigate to="/" />} />
             <Route path="/lesson/:lessonId" element={<StudentLesson />} />
@@ -123,11 +125,12 @@ export default function App() {
 
 function Home({ user, login, isLoggingIn }: { user: User | null, login: () => void, isLoggingIn: boolean }) {
   return (
-    <div className="max-w-4xl mx-auto text-center py-12">
+    <div className="max-w-5xl mx-auto py-12">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
+        className="text-center mb-16"
       >
         <h1 className="text-5xl font-extrabold text-slate-900 mb-6 tracking-tight">
           Master English Listening with <span className="text-indigo-600">AI Scaffolding</span>
@@ -135,39 +138,74 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
         <p className="text-xl text-slate-600 mb-10 leading-relaxed max-w-2xl mx-auto">
           Create structured listening lessons in seconds. Our AI generates vocabulary guides, dictation exercises, and comprehension checks tailored to your content.
         </p>
+      </motion.div>
 
-        {user ? (
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        {/* Teacher Option */}
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl hover:shadow-indigo-100 hover:border-indigo-200 transition-all group relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+            <UserCircle className="w-32 h-32 text-indigo-600" />
+          </div>
+          <div className="bg-indigo-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+            <UserCircle className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+          </div>
+          <h2 className="text-3xl font-bold text-slate-900 mb-4">Teacher Login</h2>
+          <p className="text-slate-500 mb-8 text-lg">If you are a teacher, login here to create lessons, manage classes, and track student progress.</p>
+          
+          {user ? (
             <Link 
               to="/teacher" 
-              className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 active:scale-95"
+              className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-lg active:scale-95"
             >
               <BarChart3 className="w-5 h-5" />
-              <span>Go to Dashboard</span>
+              <span>Go to Teacher Dashboard</span>
             </Link>
-            <Link 
-              to="/teacher/new" 
-              className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-white text-indigo-600 border-2 border-indigo-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-indigo-50 transition-all active:scale-95"
+          ) : (
+            <button 
+              onClick={login}
+              disabled={isLoggingIn}
+              className="w-full flex items-center justify-center space-x-3 bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-lg active:scale-95 disabled:opacity-50"
             >
-              <PlusCircle className="w-5 h-5" />
-              <span>Create New Lesson</span>
-            </Link>
+              {isLoggingIn ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <LogIn className="w-5 h-5" />
+              )}
+              <span>{isLoggingIn ? 'Logging in...' : 'Login as Teacher'}</span>
+            </button>
+          )}
+        </motion.div>
+
+        {/* Student Option */}
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl hover:shadow-emerald-100 hover:border-emerald-200 transition-all group relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+            <GraduationCap className="w-32 h-32 text-emerald-600" />
           </div>
-        ) : (
-          <button 
-            onClick={login}
-            disabled={isLoggingIn}
-            className="flex items-center space-x-3 bg-indigo-600 text-white px-10 py-5 rounded-2xl font-bold text-xl hover:bg-indigo-700 transition-all shadow-xl hover:shadow-indigo-200 active:scale-95 mx-auto disabled:opacity-50"
+          <div className="bg-emerald-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+            <GraduationCap className="w-8 h-8 text-emerald-600 group-hover:text-white" />
+          </div>
+          <h2 className="text-3xl font-bold text-slate-900 mb-4">Student Login</h2>
+          <p className="text-slate-500 mb-8 text-lg">If you are a student, enter here to see your assigned lessons and start practicing.</p>
+          
+          <Link 
+            to="/student" 
+            className="w-full flex items-center justify-center space-x-2 bg-emerald-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-emerald-700 transition-all shadow-lg active:scale-95"
           >
-            {isLoggingIn ? (
-              <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <LogIn className="w-6 h-6" />
-            )}
-            <span>{isLoggingIn ? 'Logging in...' : 'Get Started as a Teacher'}</span>
-          </button>
-        )}
-      </motion.div>
+            <GraduationCap className="w-5 h-5" />
+            <span>Go to Student Dashboard</span>
+          </Link>
+        </motion.div>
+      </div>
 
       <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
         {[

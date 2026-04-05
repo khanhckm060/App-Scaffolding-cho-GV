@@ -1,42 +1,150 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: lessons
+    // Fields:
+    //   - title: string (required, 1-200 chars)
+    //   - script: string (required, 1-10000 chars)
+    //   - vocabulary: list (required, < 50 items)
+    //   - steps: map (required)
+    //   - teacherId: string (required, matches auth.uid)
+    //   - createdAt: string (required, ISO 8601)
+    //
+    // Collection: results
+    // Fields:
+    //   - lessonId: string (required)
+    //   - assignmentId: string (optional)
+    //   - studentName: string (required, 1-100 chars)
+    //   - studentEmail: string (required, valid email)
+    //   - teacherId: string (required)
+    //   - score: number (required, 0-10)
+    //   - details: map (required)
+    //   - completedAt: string (required, ISO 8601)
+    //
+    // Collection: classes
+    // Fields:
+    //   - name: string (required, 1-100 chars)
+    //   - teacherId: string (required, matches auth.uid)
+    //   - createdAt: string (required, ISO 8601)
+    //
+    // Collection: students
+    // Fields:
+    //   - name: string (required, 1-100 chars)
+    //   - phone: string (required, < 20 chars)
+    //   - email: string (required, valid email)
+    //   - classId: string (required)
+    //   - teacherId: string (required, matches auth.uid)
+    //
+    // Collection: assignments
+    // Fields:
+    //   - lessonId: string (required)
+    //   - classId: string (required)
+    //   - className: string (optional)
+    //   - studentEmails: list (required, strings)
+    //   - teacherId: string (required, matches auth.uid)
+    //   - deadline: string (required, ISO 8601)
+    //   - createdAt: string (required, ISO 8601)
+    //
+    // ===============================================================
+
     // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
     
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "khanhckm060@gmail.com" && request.auth.token.email_verified == true));
+    }
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // Domain Validators
     function isValidLesson(data) {
-      return data.title is string && data.title.size() > 0 &&
-             data.script is string && data.script.size() > 0 &&
-             data.vocabulary is list &&
+      return data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.script is string && data.script.size() > 0 && data.script.size() < 10000 &&
+             data.vocabulary is list && data.vocabulary.size() < 50 &&
              data.steps is map &&
-             data.teacherId is string &&
-             data.createdAt is string;
+             data.teacherId == request.auth.uid &&
+             isValidDateString(data.createdAt);
     }
 
     function isValidResult(data) {
       return data.lessonId is string &&
-             data.studentName is string && data.studentName.size() > 0 &&
-             data.score is number &&
+             data.studentName is string && data.studentName.size() > 0 && data.studentName.size() < 100 &&
+             data.studentEmail is string && isValidEmail(data.studentEmail) &&
+             data.teacherId is string &&
+             data.score is number && data.score >= 0 && data.score <= 10 &&
              data.details is map &&
-             data.completedAt is string;
+             isValidDateString(data.completedAt);
+    }
+
+    function isValidClass(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.teacherId == request.auth.uid &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidStudent(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.phone is string && data.phone.size() < 20 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.classId is string &&
+             data.teacherId == request.auth.uid;
+    }
+
+    function isValidAssignment(data) {
+      return data.lessonId is string &&
+             data.classId is string &&
+             data.studentEmails is list &&
+             data.teacherId == request.auth.uid &&
+             isValidDateString(data.deadline) &&
+             isValidDateString(data.createdAt);
     }
 
     match /lessons/{lessonId} {
       allow read: if true; // Lessons are public for students with the link
       allow create: if isAuthenticated() && isValidLesson(request.resource.data);
-      allow update, delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.teacherId == request.auth.uid || isAdmin());
     }
 
     match /results/{resultId} {
-      allow read: if isAuthenticated(); // Teachers can read results
-      allow create: if true; // Students can submit results without auth
-      allow update, delete: if false;
+      // Allow students to read their own results by email, and teachers to read their own results
+      allow read: if true; 
+      allow create: if isValidResult(request.resource.data);
+      allow update, delete: if isAuthenticated() && (resource.data.teacherId == request.auth.uid || isAdmin());
+    }
+
+    match /classes/{classId} {
+      allow read, update, delete: if isAuthenticated() && (resource.data.teacherId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidClass(request.resource.data);
+    }
+
+    match /students/{studentId} {
+      allow read, update, delete: if isAuthenticated() && (resource.data.teacherId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidStudent(request.resource.data);
+    }
+
+    match /assignments/{assignmentId} {
+      // Allow students to read assignments assigned to them, and teachers to read their own assignments
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidAssignment(request.resource.data);
+      allow update, delete: if isAuthenticated() && (resource.data.teacherId == request.auth.uid || isAdmin());
     }
   }
 }

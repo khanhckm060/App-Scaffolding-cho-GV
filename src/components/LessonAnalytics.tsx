@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { Lesson, Result } from '../types';
 import { ChevronLeft, Users, Trophy, Clock, AlertCircle, BarChart3, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -24,6 +24,7 @@ export default function LessonAnalytics() {
       const q = query(
         collection(db, 'results'),
         where('lessonId', '==', lessonId),
+        where('teacherId', '==', auth.currentUser?.uid),
         orderBy('completedAt', 'desc')
       );
       const querySnapshot = await getDocs(q);

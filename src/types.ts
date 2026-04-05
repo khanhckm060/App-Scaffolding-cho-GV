@@ -57,8 +57,11 @@ export interface Lesson {
 export interface Result {
   id?: string;
   lessonId: string;
+  assignmentId?: string;
   studentName: string;
+  studentEmail: string;
   studentId?: string;
+  teacherId?: string;
   score: number;
   details: {
     step1: boolean;
@@ -67,4 +70,32 @@ export interface Result {
     step4: number; // number of correct MCQs
   };
   completedAt: string;
+}
+
+export interface Class {
+  id?: string;
+  name: string;
+  teacherId: string;
+  createdAt: string;
+}
+
+export interface Student {
+  id?: string;
+  name: string;
+  phone: string;
+  email: string;
+  classId: string;
+  teacherId: string;
+}
+
+export interface Assignment {
+  id?: string;
+  lessonId: string;
+  classId: string;
+  className?: string;
+  studentEmails: string[];
+  teacherId: string;
+  deadline: string;
+  createdAt: string;
+  lessonTitle?: string; // For display
 }

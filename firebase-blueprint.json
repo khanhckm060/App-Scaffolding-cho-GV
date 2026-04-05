@@ -21,12 +21,51 @@
       "properties": {
         "lessonId": { "type": "string", "description": "ID of the lesson" },
         "studentName": { "type": "string", "description": "Name of the student" },
+        "studentEmail": { "type": "string", "description": "Email of the student" },
         "studentId": { "type": "string", "description": "Optional ID of the student" },
+        "assignmentId": { "type": "string", "description": "Optional ID of the assignment" },
         "score": { "type": "number", "description": "Total score out of 10" },
         "details": { "type": "object", "description": "Detailed performance in each step" },
         "completedAt": { "type": "string", "format": "date-time", "description": "When the lesson was completed" }
       },
       "required": ["lessonId", "studentName", "score", "details", "completedAt"]
+    },
+    "Class": {
+      "title": "Class",
+      "description": "A class created by a teacher.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the class" },
+        "teacherId": { "type": "string", "description": "UID of the teacher" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the class was created" }
+      },
+      "required": ["name", "teacherId", "createdAt"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "A student in a class.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the student" },
+        "phone": { "type": "string", "description": "Phone number of the student" },
+        "email": { "type": "string", "description": "Email of the student" },
+        "classId": { "type": "string", "description": "ID of the class" },
+        "teacherId": { "type": "string", "description": "UID of the teacher" }
+      },
+      "required": ["name", "phone", "email", "classId", "teacherId"]
+    },
+    "Assignment": {
+      "title": "Assignment",
+      "description": "A lesson assigned to a class.",
+      "type": "object",
+      "properties": {
+        "lessonId": { "type": "string", "description": "ID of the lesson" },
+        "classId": { "type": "string", "description": "ID of the class" },
+        "teacherId": { "type": "string", "description": "UID of the teacher" },
+        "deadline": { "type": "string", "format": "date-time", "description": "Deadline for the assignment" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the assignment was created" }
+      },
+      "required": ["lessonId", "classId", "teacherId", "deadline", "createdAt"]
     }
   },
   "firestore": {
@@ -37,6 +76,18 @@
     "/results/{resultId}": {
       "schema": "Result",
       "description": "Collection of student results"
+    },
+    "/classes/{classId}": {
+      "schema": "Class",
+      "description": "Collection of classes"
+    },
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Collection of students"
+    },
+    "/assignments/{assignmentId}": {
+      "schema": "Assignment",
+      "description": "Collection of assignments"
     }
   }
 }
