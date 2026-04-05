@@ -1,6 +1,6 @@
 {
-  "name": "English Listening Scaffolding AI",
-  "description": "An AI-powered teaching assistant that creates 4-step scaffolding lessons for English listening skills based on scripts and vocabulary.",
+  "name": "English Skills AI",
+  "description": "An AI-powered platform for creating comprehensive English skills exercises including Listening, Reading, Speaking, and Writing.",
   "requestFramePermissions": [
     "microphone"
   ]

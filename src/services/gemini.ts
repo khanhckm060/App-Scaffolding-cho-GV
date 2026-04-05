@@ -132,3 +132,103 @@ export async function generateScaffolding(script: string, targetVocab: string[])
 
   return JSON.parse(response.text);
 }
+
+export interface ReadingLessonParams {
+  topic: string;
+  sourceType: 'ai' | 'sample';
+  sampleText?: string;
+  level: string;
+  numPassages: number;
+  questionTypes: string[];
+  quantityPerType?: number;
+}
+
+export async function generateReadingLesson(params: ReadingLessonParams) {
+  const prompt = `Role: Bạn là một chuyên gia khảo thí ngôn ngữ và biên soạn tài liệu tiếng Anh (ESL Content Creator), am hiểu sâu sắc khung tham chiếu ngôn ngữ chuẩn Châu Âu (CEFR) và cấu trúc đề thi của Cambridge (Movers, Flyers, KET, PET) cũng như IELTS.
+
+Task: Nhiệm vụ của bạn là tạo ra các bài tập Reading cá nhân hóa dựa trên các thông số đầu vào từ người dùng.
+
+Input Parameters:
+- Topic: ${params.topic}
+- Source Type: ${params.sourceType === 'ai' ? 'AI tự tạo nội dung' : 'Dựa trên bài mẫu được cung cấp'}
+${params.sampleText ? `- Sample Text: ${params.sampleText}` : ''}
+- Level: ${params.level}
+- Number of Passages: ${params.numPassages}
+- Question Types: ${params.questionTypes.join(', ')}
+- Quantity per Type: ${params.quantityPerType || 'AI tự quyết định'}
+
+Constraints & Quality Standards:
+1. Độ khó (Level): Phải bám sát từ vựng và cấu trúc ngữ pháp của từng cấp độ. Ví dụ: A1 dùng câu đơn, từ vựng hình ảnh; B2 dùng câu phức, từ vựng học thuật.
+2. Dạng câu hỏi (Question Types): Phải khớp với định dạng thi thực tế.
+   - Nếu chọn A1-A2: Ưu tiên Matching, True/False, Gap-fill ngắn.
+   - Nếu chọn B1-B2/IELTS: Ưu tiên Matching Headings, T/F/NG, Multiple Choice phức tạp.
+
+Output Structure:
+1. Tiêu đề bài đọc (title).
+2. Nội dung bài đọc (passage).
+3. Danh sách câu hỏi (questions).
+4. Đáp án (answer) và giải thích ngắn gọn lý do chọn (explanation).
+
+Output in JSON format with this structure:
+{
+  "title": "string",
+  "passage": "string",
+  "questions": [
+    {
+      "type": "string",
+      "question": "string",
+      "options": ["string", "string", "string", "string"], // Only for Multiple Choice
+      "answer": "string or number",
+      "explanation": "string"
+    }
+  ],
+  "vocabulary": [
+    { "word": "string", "ipa": "string", "vietnameseDefinition": "string", "example": "string" }
+  ]
+}`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          passage: { type: Type.STRING },
+          questions: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                type: { type: Type.STRING },
+                question: { type: Type.STRING },
+                options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                answer: { type: Type.STRING },
+                explanation: { type: Type.STRING },
+              },
+              required: ["type", "question", "answer", "explanation"],
+            },
+          },
+          vocabulary: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                word: { type: Type.STRING },
+                ipa: { type: Type.STRING },
+                vietnameseDefinition: { type: Type.STRING },
+                example: { type: Type.STRING },
+              },
+              required: ["word", "ipa", "vietnameseDefinition", "example"],
+            },
+          },
+        },
+        required: ["title", "passage", "questions", "vocabulary"],
+      },
+    },
+  });
+
+  return JSON.parse(response.text);
+}

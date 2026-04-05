@@ -3,18 +3,21 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, getDocs, deleteDoc, doc, orderBy, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Lesson, Class, Student, Assignment, Result } from '../types';
-import { Link } from 'react-router-dom';
-import { Plus, Trash2, ExternalLink, BarChart2, Calendar, BookOpen, Users, GraduationCap, Send, ChevronRight, UserPlus, Mail, Phone, Clock, CheckCircle2, AlertCircle, Share2, Copy } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Plus, Trash2, ExternalLink, BarChart2, Calendar, BookOpen, Users, GraduationCap, Send, ChevronRight, UserPlus, Mail, Phone, Clock, CheckCircle2, AlertCircle, Share2, Copy, Headphones, Mic, PenTool, X, Download, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { cn } from '../lib/utils';
+import { downloadWorksheet } from '../lib/worksheet';
 
 export default function TeacherDashboard() {
+  const [searchParams] = useSearchParams();
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'classes' | 'lessons'>('classes');
+  const [activeTab, setActiveTab] = useState<'classes' | 'lessons'>(searchParams.get('tab') === 'lessons' ? 'lessons' : 'classes');
   
   // Modals/Forms state
   const [showAddClass, setShowAddClass] = useState(false);
@@ -25,6 +28,7 @@ export default function TeacherDashboard() {
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [newStudent, setNewStudent] = useState({ name: '', phone: '', email: '' });
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showCreateTypeModal, setShowCreateTypeModal] = useState(false);
   const [selectedLessonForAssign, setSelectedLessonForAssign] = useState<Lesson | null>(null);
   const [assignDeadline, setAssignDeadline] = useState<string>(() => {
     const d = new Date();
@@ -33,6 +37,13 @@ export default function TeacherDashboard() {
   });
   const [assignPassingPercentage, setAssignPassingPercentage] = useState<number>(80);
   const [shareLink, setShareLink] = useState<string | null>(null);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'lessons' || tab === 'classes') {
+      setActiveTab(tab as any);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -148,7 +159,7 @@ export default function TeacherDashboard() {
   };
 
   const deleteLesson = async (id: string) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa bài nghe này?")) return;
+    if (!confirm("Bạn có chắc chắn muốn xóa bài tập này?")) return;
     await deleteDoc(doc(db, 'lessons', id));
   };
 
@@ -169,7 +180,7 @@ export default function TeacherDashboard() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-900">Chào mừng, {auth.currentUser?.displayName}!</h2>
-          <p className="text-slate-500">Quản lý lớp học và các bài nghe của bạn.</p>
+          <p className="text-slate-500">Quản lý lớp học và các bài tập của bạn.</p>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-xl">
           <button 
@@ -184,7 +195,7 @@ export default function TeacherDashboard() {
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'lessons' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <BookOpen className="w-4 h-4" />
-            <span>Bài nghe</span>
+            <span>Bài tập</span>
           </button>
         </div>
       </div>
@@ -477,7 +488,7 @@ export default function TeacherDashboard() {
                                   <BookOpen className="w-5 h-5" />
                                 </div>
                                 <div>
-                                  <p className="font-bold text-slate-800">{lesson?.title || 'Bài nghe đã xóa'}</p>
+                                  <p className="font-bold text-slate-800">{lesson?.title || 'Bài tập đã xóa'}</p>
                                   <div className="flex items-center space-x-3 text-xs text-slate-500 mt-1">
                                     <span className="flex items-center">
                                       <Clock className="w-3 h-3 mr-1" />
@@ -537,27 +548,27 @@ export default function TeacherDashboard() {
         /* Lessons Tab */
         <div className="space-y-6">
           <div className="flex justify-between items-center">
-            <h3 className="text-xl font-bold text-slate-800">Bài nghe đã tạo</h3>
-            <Link 
-              to="/teacher/new"
+            <h3 className="text-xl font-bold text-slate-800">Bài tập đã tạo</h3>
+            <button 
+              onClick={() => setShowCreateTypeModal(true)}
               className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition-all shadow-sm"
             >
               <Plus className="w-4 h-4" />
               <span>Tạo bài mới</span>
-            </Link>
+            </button>
           </div>
 
           {lessons.length === 0 ? (
             <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center">
               <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Chưa có bài nghe nào</h3>
-              <p className="text-slate-500 mb-6">Bắt đầu bằng cách tạo bài nghe đầu tiên của bạn.</p>
-              <Link 
-                to="/teacher/new"
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Chưa có bài tập nào</h3>
+              <p className="text-slate-500 mb-6">Bắt đầu bằng cách tạo bài tập đầu tiên của bạn.</p>
+              <button 
+                onClick={() => setShowCreateTypeModal(true)}
                 className="inline-block bg-indigo-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-all"
               >
                 Tạo ngay
-              </Link>
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -578,6 +589,12 @@ export default function TeacherDashboard() {
                           </span>
                           <span className="text-[10px] font-medium text-slate-400">
                             {new Date(lesson.createdAt).toLocaleDateString()}
+                          </span>
+                          <span className={cn(
+                            "px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider",
+                            lesson.type === 'reading' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-blue-50 text-blue-600 border-blue-100"
+                          )}>
+                            {lesson.type || 'listening'}
                           </span>
                         </div>
                         <h3 className="text-xl font-bold text-slate-900 truncate" title={lesson.title}>{lesson.title}</h3>
@@ -606,6 +623,14 @@ export default function TeacherDashboard() {
                         <span>Kết quả</span>
                       </Link>
                     </div>
+
+                    <button 
+                      onClick={() => downloadWorksheet(lesson)}
+                      className="w-full mt-3 flex items-center justify-center space-x-2 bg-slate-900 text-white px-4 py-2.5 rounded-lg font-medium hover:bg-slate-800 transition-colors shadow-sm"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Tải Worksheet</span>
+                    </button>
                   </div>
                   
                   <div className="bg-slate-50 px-6 py-3 border-t border-slate-100 flex justify-between items-center">
@@ -743,7 +768,7 @@ export default function TeacherDashboard() {
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-bold text-slate-900">
-                  {selectedLessonForAssign ? 'Thiết lập yêu cầu bài tập' : 'Chọn bài nghe để giao'}
+                  {selectedLessonForAssign ? 'Thiết lập yêu cầu bài tập' : 'Chọn bài tập để giao'}
                 </h3>
                 <button 
                   onClick={() => {
@@ -759,7 +784,7 @@ export default function TeacherDashboard() {
               {!selectedLessonForAssign ? (
                 <div className="overflow-y-auto flex-1 pr-2 space-y-3">
                   {lessons.length === 0 ? (
-                    <p className="text-center py-8 text-slate-400 italic">Bạn chưa tạo bài nghe nào.</p>
+                    <p className="text-center py-8 text-slate-400 italic">Bạn chưa tạo bài tập nào.</p>
                   ) : (
                     lessons.map(lesson => (
                       <div key={lesson.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 transition-all group">
@@ -912,6 +937,73 @@ export default function TeacherDashboard() {
                   className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-all"
                 >
                   Đóng
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {showCreateTypeModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-10 max-w-2xl w-full shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setShowCreateTypeModal(false)}
+                className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <div className="text-center mb-10">
+                <h3 className="text-3xl font-bold text-slate-900 mb-2">Bạn muốn tạo bài tập:</h3>
+                <p className="text-slate-500">Chọn loại kỹ năng bạn muốn học sinh luyện tập.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <Link 
+                  to="/teacher/new/listening"
+                  onClick={() => setShowCreateTypeModal(false)}
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
+                >
+                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
+                    <Headphones className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                  </div>
+                  <span className="text-xl font-bold text-slate-900">Nghe</span>
+                </Link>
+
+                <Link 
+                  to="/teacher/new/reading"
+                  onClick={() => setShowCreateTypeModal(false)}
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
+                >
+                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
+                    <BookOpen className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                  </div>
+                  <span className="text-xl font-bold text-slate-900">Đọc</span>
+                </Link>
+
+                <button 
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed"
+                  title="Coming soon"
+                >
+                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
+                    <Mic className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                  </div>
+                  <span className="text-xl font-bold text-slate-900">Nói</span>
+                </button>
+
+                <button 
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed"
+                  title="Coming soon"
+                >
+                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
+                    <PenTool className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                  </div>
+                  <span className="text-xl font-bold text-slate-900">Viết</span>
                 </button>
               </div>
             </motion.div>

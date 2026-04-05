@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc } from 'firebase/firestore';
-import { db, auth } from '../firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { generateScaffolding } from '../services/gemini';
 import { LessonLevel, LEVEL_DESCRIPTIONS } from '../types';
 import { Sparkles, Send, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
@@ -45,20 +45,25 @@ export default function LessonCreator() {
       const vocabList = vocabInput.split(',').map(v => v.trim()).filter(v => v.length > 0);
       const steps = await generateScaffolding(script, vocabList);
       
-      await addDoc(collection(db, 'lessons'), {
-        title,
-        level,
-        script,
-        audioUrl,
-        audioStart,
-        audioEnd,
-        vocabulary: steps.step1.vocabulary,
-        steps,
-        teacherId: auth.currentUser.uid,
-        createdAt: new Date().toISOString()
-      });
+      try {
+        await addDoc(collection(db, 'lessons'), {
+          type: 'listening',
+          title,
+          level,
+          script,
+          audioUrl,
+          audioStart,
+          audioEnd,
+          vocabulary: steps.step1.vocabulary,
+          steps,
+          teacherId: auth.currentUser.uid,
+          createdAt: new Date().toISOString()
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, 'lessons');
+      }
       
-      navigate('/teacher');
+      navigate('/teacher?tab=lessons');
     } catch (err) {
       console.error(err);
       setError("Failed to generate lesson. Please check your script and try again.");

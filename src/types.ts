@@ -52,18 +52,32 @@ export const LEVEL_DESCRIPTIONS: Record<LessonLevel, string> = {
   'C1': '7.0 IELTS trở lên'
 };
 
+export type LessonType = 'listening' | 'reading' | 'speaking' | 'writing';
+
 export interface Lesson {
   id?: string;
+  type: LessonType;
   title: string;
   level: LessonLevel;
-  script: string;
+  script?: string; // For listening
+  passage?: string; // For reading (single passage or legacy)
+  passages?: string[]; // For reading (multiple passages)
   audioUrl?: string;
   audioStart?: number;
   audioEnd?: number;
   vocabulary: VocabularyItem[];
-  steps: ScaffoldingSteps;
+  steps?: ScaffoldingSteps; // For listening
+  readingQuestions?: ReadingQuestion[]; // For reading
   teacherId: string;
   createdAt: string;
+}
+
+export interface ReadingQuestion {
+  type: string;
+  question: string;
+  options?: string[];
+  answer: string | number;
+  explanation: string;
 }
 
 export interface Result {
@@ -76,10 +90,11 @@ export interface Result {
   teacherId?: string;
   score: number;
   details: {
-    step1: boolean;
-    step2: boolean;
-    step3: number; // number of correct blanks
-    step4: number; // number of correct MCQs
+    step1?: boolean;
+    step2?: boolean;
+    step3?: number; // number of correct blanks
+    step4?: number; // number of correct MCQs
+    reading?: number; // number of correct reading questions
   };
   completedAt: string;
 }

@@ -100,8 +100,14 @@ export default function LessonAnalytics() {
                 <tr>
                   <th className="px-8 py-4">Student Name</th>
                   <th className="px-8 py-4">Score</th>
-                  <th className="px-8 py-4">Gap-fill</th>
-                  <th className="px-8 py-4">MCQs</th>
+                  {lesson.type === 'reading' ? (
+                    <th className="px-8 py-4">Reading Correct</th>
+                  ) : (
+                    <>
+                      <th className="px-8 py-4">Gap-fill</th>
+                      <th className="px-8 py-4">MCQs</th>
+                    </>
+                  )}
                   <th className="px-8 py-4">Completed At</th>
                   <th className="px-8 py-4">Status</th>
                 </tr>
@@ -121,8 +127,14 @@ export default function LessonAnalytics() {
                         {result.score}/10
                       </span>
                     </td>
-                    <td className="px-8 py-5 text-slate-600 font-medium">{result.details.step3} correct</td>
-                    <td className="px-8 py-5 text-slate-600 font-medium">{result.details.step4} correct</td>
+                    {lesson.type === 'reading' ? (
+                      <td className="px-8 py-5 text-slate-600 font-medium">{result.details.reading} correct</td>
+                    ) : (
+                      <>
+                        <td className="px-8 py-5 text-slate-600 font-medium">{result.details.step3} correct</td>
+                        <td className="px-8 py-5 text-slate-600 font-medium">{result.details.step4} correct</td>
+                      </>
+                    )}
                     <td className="px-8 py-5 text-slate-500 text-sm">
                       {new Date(result.completedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                     </td>

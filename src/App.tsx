@@ -5,10 +5,78 @@ import { auth } from './firebase';
 import TeacherDashboard from './components/TeacherDashboard';
 import StudentDashboard from './components/StudentDashboard';
 import LessonCreator from './components/LessonCreator';
+import ReadingLessonCreator from './components/ReadingLessonCreator';
 import StudentLesson from './components/StudentLesson';
 import LessonAnalytics from './components/LessonAnalytics';
-import { LogIn, LogOut, BookOpen, BarChart3, PlusCircle, GraduationCap, UserCircle, Headphones, Mic, PenTool, ChevronRight, X } from 'lucide-react';
+import { LogIn, LogOut, BookOpen, BarChart3, PlusCircle, GraduationCap, UserCircle, Headphones, Mic, PenTool, ChevronRight, X, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("Uncaught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      let errorMessage = "Something went wrong.";
+      let details = null;
+
+      try {
+        const parsed = JSON.parse(this.state.error?.message || "");
+        if (parsed.error) {
+          errorMessage = parsed.error;
+          details = parsed;
+        }
+      } catch (e) {
+        errorMessage = this.state.error?.message || errorMessage;
+      }
+
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+          <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl border border-red-100 text-center">
+            <div className="bg-red-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <X className="w-8 h-8 text-red-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-4">Oops! An error occurred</h2>
+            <p className="text-slate-600 mb-6">{errorMessage}</p>
+            {details && (
+              <div className="text-left bg-slate-50 p-4 rounded-xl mb-6 overflow-auto max-h-40">
+                <pre className="text-[10px] text-slate-500">{JSON.stringify(details, null, 2)}</pre>
+              </div>
+            )}
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -58,19 +126,30 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-        <nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <ErrorBoundary>
+          <nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
+          <div className="w-full px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16 items-center">
               <Link to="/" className="flex items-center space-x-2">
                 <div className="bg-indigo-600 p-2 rounded-lg">
                   <BookOpen className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-xl font-bold tracking-tight text-slate-900">ScaffoldAI</span>
+                <span className="text-xl font-bold tracking-tight text-slate-900">English Skills AI</span>
               </Link>
 
               <div className="flex items-center space-x-4">
                 {user ? (
                   <>
+                    <div className="hidden sm:flex items-center space-x-6 mr-6 pr-6 border-r border-slate-200">
+                      <Link to="/teacher?tab=classes" className="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors flex items-center space-x-1.5">
+                        <Users className="w-4 h-4" />
+                        <span>Lớp học</span>
+                      </Link>
+                      <Link to="/teacher?tab=lessons" className="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors flex items-center space-x-1.5">
+                        <BookOpen className="w-4 h-4" />
+                        <span>Bài tập</span>
+                      </Link>
+                    </div>
                     <Link to="/teacher" className="text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors">
                       Teacher Dashboard
                     </Link>
@@ -108,16 +187,18 @@ export default function App() {
           </div>
         </nav>
 
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="w-full py-8">
           <Routes>
             <Route path="/" element={<Home user={user} login={login} isLoggingIn={isLoggingIn} />} />
-            <Route path="/teacher" element={user ? <TeacherDashboard /> : <Navigate to="/" />} />
-            <Route path="/student" element={<StudentDashboard />} />
-            <Route path="/teacher/new" element={user ? <LessonCreator /> : <Navigate to="/" />} />
-            <Route path="/teacher/analytics/:lessonId" element={user ? <LessonAnalytics /> : <Navigate to="/" />} />
+            <Route path="/teacher" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><TeacherDashboard /></div> : <Navigate to="/" />} />
+            <Route path="/student" element={<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><StudentDashboard /></div>} />
+            <Route path="/teacher/new/listening" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><LessonCreator /></div> : <Navigate to="/" />} />
+            <Route path="/teacher/new/reading" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><ReadingLessonCreator /></div> : <Navigate to="/" />} />
+            <Route path="/teacher/analytics/:lessonId" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><LessonAnalytics /></div> : <Navigate to="/" />} />
             <Route path="/lesson/:lessonId" element={<StudentLesson />} />
           </Routes>
         </main>
+        </ErrorBoundary>
       </div>
     </BrowserRouter>
   );
@@ -135,10 +216,10 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
         className="text-center mb-16"
       >
         <h1 className="text-5xl font-extrabold text-slate-900 mb-6 tracking-tight">
-          Master English Listening with <span className="text-indigo-600">AI Scaffolding</span>
+          Master English Skills with <span className="text-indigo-600">AI-Powered Exercises</span>
         </h1>
         <p className="text-xl text-slate-600 mb-10 leading-relaxed max-w-2xl mx-auto">
-          Create structured listening lessons in seconds. Our AI generates vocabulary guides, dictation exercises, and comprehension checks tailored to your content.
+          Create comprehensive exercises for Listening, Reading, Speaking, and Writing in seconds. Our AI helps you build structured lessons tailored to your students' needs.
         </p>
       </motion.div>
 
@@ -249,7 +330,7 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
 
               <div className="grid grid-cols-2 gap-6">
                 <Link 
-                  to="/teacher/new"
+                  to="/teacher/new/listening"
                   onClick={() => setShowCreateOptions(false)}
                   className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
                 >
@@ -259,20 +340,24 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
                   <span className="text-xl font-bold text-slate-900">Nghe</span>
                 </Link>
 
-                <button 
-                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed"
-                  title="Coming soon"
+                <Link 
+                  to="/teacher/new/reading"
+                  onClick={() => setShowCreateOptions(false)}
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
                 >
                   <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
                     <BookOpen className="w-8 h-8 text-indigo-600 group-hover:text-white" />
                   </div>
                   <span className="text-xl font-bold text-slate-900">Đọc</span>
-                </button>
+                </Link>
 
                 <button 
-                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed"
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed relative"
                   title="Coming soon"
                 >
+                  <div className="absolute top-4 right-4 bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded-full">
+                    Coming soon
+                  </div>
                   <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
                     <Mic className="w-8 h-8 text-indigo-600 group-hover:text-white" />
                   </div>
@@ -280,9 +365,12 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
                 </button>
 
                 <button 
-                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed"
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed relative"
                   title="Coming soon"
                 >
+                  <div className="absolute top-4 right-4 bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded-full">
+                    Coming soon
+                  </div>
                   <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
                     <PenTool className="w-8 h-8 text-indigo-600 group-hover:text-white" />
                   </div>
@@ -296,9 +384,9 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
 
       <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
         {[
-          { title: "Smart Scaffolding", desc: "4-step process: Meaning, Dictation, Gap-fill, and Comprehension.", icon: BookOpen },
-          { title: "Instant Generation", desc: "Just paste your script and vocabulary. AI handles the rest.", icon: PlusCircle },
-          { title: "Student Analytics", desc: "Track progress, scores, and common mistakes in real-time.", icon: BarChart3 },
+          { title: "Multi-Skill Support", desc: "Create exercises for Listening, Reading, and more with specialized workflows.", icon: BookOpen },
+          { title: "AI-Powered Creation", desc: "Just provide your content. Our AI handles the exercise generation instantly.", icon: PlusCircle },
+          { title: "Detailed Analytics", desc: "Track student progress, scores, and common mistakes across all skills.", icon: BarChart3 },
         ].map((feature, i) => (
           <motion.div 
             key={i}

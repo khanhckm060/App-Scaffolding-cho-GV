@@ -101,7 +101,7 @@ export default function StudentDashboard() {
             <GraduationCap className="w-8 h-8 text-indigo-600" />
           </div>
           <h2 className="text-2xl font-bold text-center text-slate-900 mb-2">Student Login</h2>
-          <p className="text-slate-500 text-center mb-8">Enter your email to see your assigned lessons.</p>
+          <p className="text-slate-500 text-center mb-8">Enter your email to see your assigned exercises.</p>
           
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="relative group">
@@ -119,7 +119,7 @@ export default function StudentDashboard() {
               type="submit"
               className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-lg active:scale-95 flex items-center justify-center space-x-2"
             >
-              <span>View My Lessons</span>
+              <span>View My Exercises</span>
               <ArrowRight className="w-5 h-5" />
             </button>
           </form>
@@ -164,7 +164,7 @@ export default function StudentDashboard() {
             <span className="text-xs font-bold uppercase tracking-wider opacity-80">To Do</span>
           </div>
           <div className="text-4xl font-black mb-1">{todoAssignments.length}</div>
-          <div className="text-sm opacity-80">Lessons to complete</div>
+          <div className="text-sm opacity-80">Exercises to complete</div>
         </div>
 
         <div className="bg-emerald-500 p-6 rounded-3xl text-white shadow-lg shadow-emerald-100">
@@ -175,7 +175,7 @@ export default function StudentDashboard() {
             <span className="text-xs font-bold uppercase tracking-wider opacity-80">Completed</span>
           </div>
           <div className="text-4xl font-black mb-1">{completedAssignments.length}</div>
-          <div className="text-sm opacity-80">Lessons passed (≥ 8.0)</div>
+          <div className="text-sm opacity-80">Exercises passed (≥ 8.0)</div>
         </div>
 
         <div className="bg-amber-500 p-6 rounded-3xl text-white shadow-lg shadow-amber-100">
@@ -198,11 +198,11 @@ export default function StudentDashboard() {
       <div className="space-y-6">
         <h2 className="text-2xl font-bold text-slate-900 flex items-center space-x-2">
           <AlertCircle className="w-6 h-6 text-indigo-600" />
-          <span>Priority: Lessons to Complete</span>
+          <span>Priority: Exercises to Complete</span>
         </h2>
         
         {loading ? (
-          <div className="text-center py-12 text-slate-400">Loading your lessons...</div>
+          <div className="text-center py-12 text-slate-400">Loading your exercises...</div>
         ) : todoAssignments.length === 0 ? (
           <div className="bg-white p-12 rounded-3xl border border-dashed border-slate-200 text-center">
             <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -233,7 +233,7 @@ export default function StudentDashboard() {
                     <span className="text-xs font-medium text-slate-600">{new Date(assign.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors">{assign.lesson?.title || 'Untitled Lesson'}</h3>
+                <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors">{assign.lesson?.title || 'Untitled Exercise'}</h3>
                 <div className="flex items-center space-x-4 text-sm text-slate-500 mb-6">
                   <div className="flex items-center space-x-1">
                     <Calendar className="w-4 h-4" />
@@ -260,13 +260,13 @@ export default function StudentDashboard() {
         <div className="space-y-6 pt-8">
           <h2 className="text-2xl font-bold text-slate-900 flex items-center space-x-2">
             <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-            <span>Completed Lessons</span>
+            <span>Completed Exercises</span>
           </h2>
           <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
             <table className="w-full text-left">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Lesson</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Exercise</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Class</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">Best Score</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Action</th>
