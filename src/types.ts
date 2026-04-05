@@ -41,9 +41,21 @@ export interface ScaffoldingSteps {
   };
 }
 
+export type LessonLevel = 'A0' | 'A1' | 'A2' | 'B1' | 'B2' | 'C1';
+
+export const LEVEL_DESCRIPTIONS: Record<LessonLevel, string> = {
+  'A0': 'ko biết gì',
+  'A1': 'Movers trên 10 khiên',
+  'A2': 'Flyers trên 10 Khiên hoặc KET',
+  'B1': 'PET',
+  'B2': 'FCE hoặc 5.5 IELTS',
+  'C1': '7.0 IELTS trở lên'
+};
+
 export interface Lesson {
   id?: string;
   title: string;
+  level: LessonLevel;
   script: string;
   audioUrl?: string;
   audioStart?: number;

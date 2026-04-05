@@ -7,7 +7,7 @@ import StudentDashboard from './components/StudentDashboard';
 import LessonCreator from './components/LessonCreator';
 import StudentLesson from './components/StudentLesson';
 import LessonAnalytics from './components/LessonAnalytics';
-import { LogIn, LogOut, BookOpen, BarChart3, PlusCircle, GraduationCap, UserCircle } from 'lucide-react';
+import { LogIn, LogOut, BookOpen, BarChart3, PlusCircle, GraduationCap, UserCircle, Headphones, Mic, PenTool, ChevronRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -124,6 +124,8 @@ export default function App() {
 }
 
 function Home({ user, login, isLoggingIn }: { user: User | null, login: () => void, isLoggingIn: boolean }) {
+  const [showCreateOptions, setShowCreateOptions] = useState(false);
+
   return (
     <div className="max-w-5xl mx-auto py-12">
       <motion.div
@@ -158,13 +160,29 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
           <p className="text-slate-500 mb-8 text-lg">If you are a teacher, login here to create lessons, manage classes, and track student progress.</p>
           
           {user ? (
-            <Link 
-              to="/teacher" 
-              className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-lg active:scale-95"
-            >
-              <BarChart3 className="w-5 h-5" />
-              <span>Go to Teacher Dashboard</span>
-            </Link>
+            <div className="space-y-4">
+              <Link 
+                to="/teacher" 
+                className="w-full flex items-center justify-between bg-indigo-600 text-white px-6 py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-lg active:scale-95 group/btn"
+              >
+                <div className="flex items-center space-x-3">
+                  <BarChart3 className="w-5 h-5" />
+                  <span>Go to Teacher Dashboard</span>
+                </div>
+                <ChevronRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+              </Link>
+              
+              <button 
+                onClick={() => setShowCreateOptions(true)}
+                className="w-full flex items-center justify-between bg-white border-2 border-indigo-600 text-indigo-600 px-6 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-all active:scale-95 group/btn"
+              >
+                <div className="flex items-center space-x-3">
+                  <PlusCircle className="w-5 h-5" />
+                  <span>Tạo bài tập cho học sinh</span>
+                </div>
+                <ChevronRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+              </button>
+            </div>
           ) : (
             <button 
               onClick={login}
@@ -206,6 +224,75 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
           </Link>
         </motion.div>
       </div>
+
+      {/* Create Assignment Modal */}
+      <AnimatePresence>
+        {showCreateOptions && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-10 max-w-2xl w-full shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setShowCreateOptions(false)}
+                className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <div className="text-center mb-10">
+                <h3 className="text-3xl font-bold text-slate-900 mb-2">Bạn muốn tạo bài tập:</h3>
+                <p className="text-slate-500">Chọn loại kỹ năng bạn muốn học sinh luyện tập.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <Link 
+                  to="/teacher/new"
+                  onClick={() => setShowCreateOptions(false)}
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
+                >
+                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
+                    <Headphones className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                  </div>
+                  <span className="text-xl font-bold text-slate-900">Nghe</span>
+                </Link>
+
+                <button 
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed"
+                  title="Coming soon"
+                >
+                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
+                    <BookOpen className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                  </div>
+                  <span className="text-xl font-bold text-slate-900">Đọc</span>
+                </button>
+
+                <button 
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed"
+                  title="Coming soon"
+                >
+                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
+                    <Mic className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                  </div>
+                  <span className="text-xl font-bold text-slate-900">Nói</span>
+                </button>
+
+                <button 
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed"
+                  title="Coming soon"
+                >
+                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
+                    <PenTool className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                  </div>
+                  <span className="text-xl font-bold text-slate-900">Viết</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
         {[

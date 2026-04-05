@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { collection, addDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { generateScaffolding } from '../services/gemini';
-import { Sparkles, Send, Loader2, AlertCircle } from 'lucide-react';
+import { LessonLevel, LEVEL_DESCRIPTIONS } from '../types';
+import { Sparkles, Send, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function LessonCreator() {
   const [title, setTitle] = useState('');
+  const [level, setLevel] = useState<LessonLevel>('A0');
   const [script, setScript] = useState('');
   const [vocabInput, setVocabInput] = useState('');
   const [audioUrl, setAudioUrl] = useState('');
@@ -45,6 +47,7 @@ export default function LessonCreator() {
       
       await addDoc(collection(db, 'lessons'), {
         title,
+        level,
         script,
         audioUrl,
         audioStart,
@@ -72,16 +75,35 @@ export default function LessonCreator() {
       </div>
 
       <form onSubmit={handleCreate} className="space-y-6 bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-        <div className="space-y-2">
-          <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Lesson Title</label>
-          <input 
-            type="text" 
-            required
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g., Introduction to Climate Change"
-            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Lesson Title</label>
+            <input 
+              type="text" 
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g., Introduction to Climate Change"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Target Level</label>
+            <div className="relative">
+              <select 
+                value={level}
+                onChange={(e) => setLevel(e.target.value as LessonLevel)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none appearance-none bg-white"
+              >
+                {(Object.keys(LEVEL_DESCRIPTIONS) as LessonLevel[]).map((lvl) => (
+                  <option key={lvl} value={lvl}>
+                    {lvl}: {LEVEL_DESCRIPTIONS[lvl]}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

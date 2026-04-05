@@ -220,8 +220,13 @@ export default function StudentDashboard() {
                 className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all group"
               >
                 <div className="flex justify-between items-start mb-4">
-                  <div className="bg-indigo-50 p-3 rounded-xl text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                    <BookOpen className="w-6 h-6" />
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-indigo-50 p-3 rounded-xl text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                      <BookOpen className="w-6 h-6" />
+                    </div>
+                    <span className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold border border-indigo-100">
+                      {assign.lesson?.level}
+                    </span>
                   </div>
                   <div className="flex flex-col items-end">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Assigned</span>
@@ -273,7 +278,12 @@ export default function StudentDashboard() {
                   return (
                     <tr key={assign.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
-                        <div className="font-bold text-slate-900">{assign.lesson?.title}</div>
+                        <div className="flex items-center space-x-2">
+                          <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-bold border border-slate-200">
+                            {assign.lesson?.level}
+                          </span>
+                          <div className="font-bold text-slate-900">{assign.lesson?.title}</div>
+                        </div>
                         <div className="text-xs text-slate-400">Completed on {new Date(bestResult?.completedAt || '').toLocaleDateString()}</div>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600">{assign.className}</td>

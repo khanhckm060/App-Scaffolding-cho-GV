@@ -542,18 +542,23 @@ export default function TeacherDashboard() {
                 >
                   <div className="p-6">
                     <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-xl font-bold text-slate-900 line-clamp-1">{lesson.title}</h3>
+                      <div className="flex-1 min-w-0 mr-2">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[10px] font-bold border border-indigo-100">
+                            {lesson.level}
+                          </span>
+                          <span className="text-[10px] font-medium text-slate-400">
+                            {new Date(lesson.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-900 truncate" title={lesson.title}>{lesson.title}</h3>
+                      </div>
                       <button 
                         onClick={() => deleteLesson(lesson.id!)}
-                        className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                        className="text-slate-400 hover:text-red-500 transition-colors p-1 shrink-0"
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>
-                    </div>
-                    
-                    <div className="flex items-center text-sm text-slate-500 mb-6">
-                      <Calendar className="w-4 h-4 mr-2" />
-                      {new Date(lesson.createdAt).toLocaleDateString()}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -725,7 +730,12 @@ export default function TeacherDashboard() {
                           <BookOpen className="w-5 h-5" />
                         </div>
                         <div>
-                          <p className="font-bold text-slate-800">{lesson.title}</p>
+                          <div className="flex items-center space-x-2">
+                            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-bold border border-slate-200">
+                              {lesson.level}
+                            </span>
+                            <p className="font-bold text-slate-800">{lesson.title}</p>
+                          </div>
                           <p className="text-xs text-slate-400">{lesson.vocabulary.length} từ vựng</p>
                         </div>
                       </div>
