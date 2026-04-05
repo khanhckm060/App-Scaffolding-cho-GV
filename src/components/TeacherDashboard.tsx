@@ -25,6 +25,13 @@ export default function TeacherDashboard() {
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [newStudent, setNewStudent] = useState({ name: '', phone: '', email: '' });
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedLessonForAssign, setSelectedLessonForAssign] = useState<Lesson | null>(null);
+  const [assignDeadline, setAssignDeadline] = useState<string>(() => {
+    const d = new Date();
+    d.setHours(d.getHours() + 48);
+    return d.toISOString().slice(0, 16);
+  });
+  const [assignPassingPercentage, setAssignPassingPercentage] = useState<number>(80);
   const [shareLink, setShareLink] = useState<string | null>(null);
 
   useEffect(() => {
@@ -100,24 +107,43 @@ export default function TeacherDashboard() {
     setShowAddStudent(false);
   };
 
-  const handleAssignLesson = async (lessonId: string) => {
-    if (!auth.currentUser || !selectedClassId || !selectedClass) return;
-    const deadline = new Date();
-    deadline.setHours(deadline.getHours() + 48);
-
+  const handleAssignLesson = async () => {
+    if (!auth.currentUser || !selectedClassId || !selectedClass || !selectedLessonForAssign) return;
+    
+    const deadline = new Date(assignDeadline);
     const studentEmails = classStudents.map(s => s.email);
 
-    await addDoc(collection(db, 'assignments'), {
-      lessonId,
+    const assignmentRef = await addDoc(collection(db, 'assignments'), {
+      lessonId: selectedLessonForAssign.id,
       classId: selectedClassId,
       className: selectedClass.name,
       studentEmails,
       teacherId: auth.currentUser.uid,
       deadline: deadline.toISOString(),
+      passingPercentage: assignPassingPercentage,
       createdAt: new Date().toISOString()
     });
+
+    // Notify students via API
+    try {
+      await fetch('/api/notify-assignment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assignmentId: assignmentRef.id,
+          lessonTitle: selectedLessonForAssign.title || 'Bài tập mới',
+          studentEmails,
+          deadline: deadline.toISOString(),
+          passingPercentage: assignPassingPercentage,
+          teacherName: auth.currentUser.displayName || 'Giáo viên'
+        })
+      });
+    } catch (err) {
+      console.error("Failed to trigger notifications:", err);
+    }
     
     setShowAssignModal(false);
+    setSelectedLessonForAssign(null);
     alert("Bài tập đã được giao! Thông báo đã được gửi tới email học viên (Simulated).");
   };
 
@@ -396,10 +422,13 @@ export default function TeacherDashboard() {
                                     </td>
                                     {monthlyAssignments.map(assignment => {
                                       const result = results.find(r => r.studentEmail === student.email && r.assignmentId === assignment.id);
+                                      const targetPercent = assignment.passingPercentage || 80;
+                                      const targetScore = (targetPercent / 100) * 10;
+                                      
                                       return (
                                         <td key={assignment.id} className="py-4 px-4 text-center">
                                           {result ? (
-                                            <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl font-bold text-sm ${result.score >= 8 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                            <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl font-bold text-sm ${result.score >= targetScore ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                               {result.score}
                                             </div>
                                           ) : (
@@ -710,49 +739,125 @@ export default function TeacherDashboard() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl max-h-[80vh] overflow-hidden flex flex-col"
+              className="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-hidden flex flex-col"
             >
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold text-slate-900">Chọn bài nghe để giao</h3>
-                <button onClick={() => setShowAssignModal(false)} className="text-slate-400 hover:text-slate-600">
+                <h3 className="text-2xl font-bold text-slate-900">
+                  {selectedLessonForAssign ? 'Thiết lập yêu cầu bài tập' : 'Chọn bài nghe để giao'}
+                </h3>
+                <button 
+                  onClick={() => {
+                    setShowAssignModal(false);
+                    setSelectedLessonForAssign(null);
+                  }} 
+                  className="text-slate-400 hover:text-slate-600"
+                >
                   <Plus className="w-6 h-6 rotate-45" />
                 </button>
               </div>
               
-              <div className="overflow-y-auto flex-1 pr-2 space-y-3">
-                {lessons.length === 0 ? (
-                  <p className="text-center py-8 text-slate-400 italic">Bạn chưa tạo bài nghe nào.</p>
-                ) : (
-                  lessons.map(lesson => (
-                    <div key={lesson.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 transition-all group">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                          <BookOpen className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-bold border border-slate-200">
-                              {lesson.level}
-                            </span>
-                            <p className="font-bold text-slate-800">{lesson.title}</p>
+              {!selectedLessonForAssign ? (
+                <div className="overflow-y-auto flex-1 pr-2 space-y-3">
+                  {lessons.length === 0 ? (
+                    <p className="text-center py-8 text-slate-400 italic">Bạn chưa tạo bài nghe nào.</p>
+                  ) : (
+                    lessons.map(lesson => (
+                      <div key={lesson.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 transition-all group">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                            <BookOpen className="w-5 h-5" />
                           </div>
-                          <p className="text-xs text-slate-400">{lesson.vocabulary.length} từ vựng</p>
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-bold border border-slate-200">
+                                {lesson.level}
+                              </span>
+                              <p className="font-bold text-slate-800">{lesson.title}</p>
+                            </div>
+                            <p className="text-xs text-slate-400">{lesson.vocabulary.length} từ vựng</p>
+                          </div>
                         </div>
+                        <button 
+                          onClick={() => setSelectedLessonForAssign(lesson)}
+                          className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-indigo-700 transition-all shadow-sm"
+                        >
+                          Chọn bài
+                        </button>
                       </div>
-                      <button 
-                        onClick={() => handleAssignLesson(lesson.id!)}
-                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-indigo-700 transition-all shadow-sm"
-                      >
-                        Giao bài
-                      </button>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-6 overflow-y-auto flex-1 pr-2">
+                  <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex items-center space-x-4">
+                    <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
+                      <BookOpen className="w-6 h-6" />
                     </div>
-                  ))
-                )}
-              </div>
+                    <div>
+                      <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Đang giao bài</p>
+                      <p className="text-lg font-bold text-slate-900">{selectedLessonForAssign.title}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center">
+                        <Calendar className="w-4 h-4 mr-2 text-indigo-500" />
+                        Thời hạn nộp bài
+                      </label>
+                      <input 
+                        type="datetime-local"
+                        value={assignDeadline}
+                        onChange={(e) => setAssignDeadline(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                      />
+                      <p className="text-[10px] text-slate-400">Học sinh sẽ không thể làm bài sau thời gian này.</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center">
+                        <BarChart2 className="w-4 h-4 mr-2 text-indigo-500" />
+                        Tỉ lệ hoàn thành (%)
+                      </label>
+                      <div className="flex items-center space-x-4">
+                        <input 
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="5"
+                          value={assignPassingPercentage}
+                          onChange={(e) => setAssignPassingPercentage(parseInt(e.target.value))}
+                          className="flex-1 accent-indigo-600"
+                        />
+                        <span className="w-12 text-center font-bold text-indigo-600 bg-indigo-50 py-1 rounded-lg border border-indigo-100">
+                          {assignPassingPercentage}%
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">Yêu cầu tối thiểu để được tính là hoàn thành.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex space-x-3 pt-4">
+                    <button 
+                      onClick={() => setSelectedLessonForAssign(null)}
+                      className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-colors"
+                    >
+                      Quay lại chọn bài
+                    </button>
+                    <button 
+                      onClick={handleAssignLesson}
+                      className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center space-x-2"
+                    >
+                      <Send className="w-5 h-5" />
+                      <span>Xác nhận giao bài</span>
+                    </button>
+                  </div>
+                </div>
+              )}
               
               <div className="mt-6 pt-6 border-t border-slate-100 flex items-center text-xs text-slate-400">
                 <AlertCircle className="w-4 h-4 mr-2" />
-                <span>Học viên sẽ có 48 giờ để hoàn thành bài tập kể từ khi được giao.</span>
+                <span>Hệ thống sẽ tự động gửi email thông báo và nhắc nhở cho học sinh.</span>
               </div>
             </motion.div>
           </div>

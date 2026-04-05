@@ -110,4 +110,5 @@ export interface Assignment {
   deadline: string;
   createdAt: string;
   lessonTitle?: string; // For display
+  passingPercentage?: number; // New field
 }
