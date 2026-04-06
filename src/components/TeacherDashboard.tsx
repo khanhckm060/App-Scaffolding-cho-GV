@@ -4,10 +4,11 @@ import { collection, query, where, getDocs, deleteDoc, doc, orderBy, addDoc, onS
 import { db, auth } from '../firebase';
 import { Lesson, Class, Student, Assignment, Result } from '../types';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, ExternalLink, BarChart2, Calendar, BookOpen, Users, GraduationCap, Send, ChevronRight, UserPlus, Mail, Phone, Clock, CheckCircle2, AlertCircle, Share2, Copy, Headphones, Mic, PenTool, X, Download, Loader2 } from 'lucide-react';
+import { Plus, Trash2, ExternalLink, BarChart2, Calendar, BookOpen, Users, GraduationCap, Send, ChevronRight, UserPlus, Mail, Phone, Clock, CheckCircle2, AlertCircle, Share2, Copy, Headphones, Mic, PenTool, X, Download, Loader2, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { downloadWorksheet } from '../lib/worksheet';
+import * as XLSX from 'xlsx';
 
 export default function TeacherDashboard() {
   const [searchParams] = useSearchParams();
@@ -26,6 +27,7 @@ export default function TeacherDashboard() {
   const [viewMode, setViewMode] = useState<'list' | 'monthly'>('list');
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [showAddStudent, setShowAddStudent] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [newStudent, setNewStudent] = useState({ name: '', phone: '', email: '' });
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showCreateTypeModal, setShowCreateTypeModal] = useState(false);
@@ -116,6 +118,70 @@ export default function TeacherDashboard() {
     });
     setNewStudent({ name: '', phone: '', email: '' });
     setShowAddStudent(false);
+  };
+
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !auth.currentUser || !selectedClassId) return;
+
+    setImporting(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+
+        // Skip header row if it exists
+        // We look for columns that look like name, phone, email
+        // For simplicity, we'll assume the first row is header or data
+        // and try to find columns by name or index
+        
+        const studentsToImport: any[] = [];
+        const header = data[0].map(h => String(h).toLowerCase().trim());
+        
+        const nameIdx = header.findIndex(h => h.includes('tên') || h.includes('name'));
+        const phoneIdx = header.findIndex(h => h.includes('số') || h.includes('phone') || h.includes('điện thoại'));
+        const emailIdx = header.findIndex(h => h.includes('email') || h.includes('gmail') || h.includes('thư'));
+
+        // If we can't find by name, assume order: 0: name, 1: phone, 2: email
+        const finalNameIdx = nameIdx !== -1 ? nameIdx : 0;
+        const finalPhoneIdx = phoneIdx !== -1 ? phoneIdx : 1;
+        const finalEmailIdx = emailIdx !== -1 ? emailIdx : 2;
+
+        for (let i = 1; i < data.length; i++) {
+          const row = data[i];
+          if (row[finalNameIdx] && row[finalEmailIdx]) {
+            studentsToImport.push({
+              name: String(row[finalNameIdx] || '').trim(),
+              phone: String(row[finalPhoneIdx] || '').trim(),
+              email: String(row[finalEmailIdx] || '').trim().toLowerCase(),
+              classId: selectedClassId,
+              teacherId: auth.currentUser?.uid,
+              createdAt: new Date().toISOString()
+            });
+          }
+        }
+
+        if (studentsToImport.length > 0) {
+          const promises = studentsToImport.map(s => addDoc(collection(db, 'students'), s));
+          await Promise.all(promises);
+          alert(`Đã nhập thành công ${studentsToImport.length} học sinh.`);
+        } else {
+          alert('Không tìm thấy dữ liệu học sinh hợp lệ trong file.');
+        }
+        setImporting(false);
+      };
+      reader.readAsBinaryString(file);
+    } catch (err) {
+      console.error(err);
+      alert('Có lỗi xảy ra khi đọc file Excel.');
+      setImporting(false);
+    }
+    // Reset input
+    e.target.value = '';
   };
 
   const handleAssignLesson = async () => {
@@ -323,6 +389,23 @@ export default function TeacherDashboard() {
                           <UserPlus className="w-4 h-4 mr-1" />
                           Thêm học sinh
                         </button>
+                        <div className="flex items-center space-x-2">
+                          <label className="text-sm font-semibold text-emerald-600 hover:text-emerald-700 flex items-center cursor-pointer">
+                            {importing ? (
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            ) : (
+                              <FileSpreadsheet className="w-4 h-4 mr-1" />
+                            )}
+                            Nhập Excel
+                            <input 
+                              type="file" 
+                              accept=".xlsx, .xls, .csv" 
+                              className="hidden" 
+                              onChange={handleImportExcel}
+                              disabled={importing}
+                            />
+                          </label>
+                        </div>
                       </div>
 
                       <div className="overflow-x-auto">
