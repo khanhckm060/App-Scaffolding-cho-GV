@@ -10,10 +10,10 @@ import {
   Check, X, Trophy, Share2, User, ChevronRight, ChevronLeft,
   Info, Type as TypeIcon, FileText, HelpCircle, BookOpen,
   GraduationCap, Headphones, Mail, AlertCircle, Loader2,
-  Mic, Square
+  Mic, Square, ExternalLink, AlertTriangle
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { cn } from '../lib/utils';
+import { cn, isInAppBrowser } from '../lib/utils';
 
 export default function StudentLesson() {
   const { lessonId } = useParams();
@@ -61,6 +61,10 @@ export default function StudentLesson() {
   }, []);
 
   const handleGoogleSignIn = async () => {
+    if (isInAppBrowser()) {
+      alert("Google không cho phép đăng nhập trong ứng dụng này (Zalo/Facebook/Messenger). Vui lòng copy link và mở bằng Chrome hoặc Safari để tiếp tục.");
+      return;
+    }
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
@@ -68,9 +72,13 @@ export default function StudentLesson() {
         setStudentName(result.user.displayName || '');
         setStudentEmail(result.user.email || '');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing in with Google:", error);
-      setError("Failed to sign in with Google. Please try again.");
+      if (error.code === 'auth/disallowed-useragent') {
+        setError("Trình duyệt này không được hỗ trợ. Vui lòng mở link bằng Chrome hoặc Safari.");
+      } else {
+        setError("Failed to sign in with Google. Please try again.");
+      }
     }
   };
 
@@ -643,6 +651,27 @@ export default function StudentLesson() {
             
             {!user ? (
               <div className="max-w-sm mx-auto space-y-6">
+                {isInAppBrowser() && (
+                  <div className="bg-amber-50 border border-amber-200 p-6 rounded-2xl text-left mb-6">
+                    <div className="flex items-center space-x-2 text-amber-800 font-bold mb-3">
+                      <AlertTriangle className="w-5 h-5" />
+                      <span>Lưu ý quan trọng</span>
+                    </div>
+                    <p className="text-sm text-amber-700 mb-4 leading-relaxed">
+                      Bạn đang mở link trong ứng dụng (Zalo/Facebook). Google không cho phép đăng nhập tại đây. 
+                    </p>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(window.location.href);
+                        alert("Đã copy link! Vui lòng dán vào Chrome hoặc Safari.");
+                      }}
+                      className="w-full flex items-center justify-center space-x-2 bg-white border border-amber-200 text-amber-700 py-3 rounded-xl text-sm font-bold hover:bg-amber-50 transition-all shadow-sm"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      <span>Copy Link để mở Chrome/Safari</span>
+                    </button>
+                  </div>
+                )}
                 <p className="text-slate-500 text-lg">Vui lòng đăng nhập bằng Gmail để bắt đầu bài học.</p>
                 <button 
                   onClick={handleGoogleSignIn}

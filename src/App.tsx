@@ -8,9 +8,10 @@ import LessonCreator from './components/LessonCreator';
 import ReadingLessonCreator from './components/ReadingLessonCreator';
 import StudentLesson from './components/StudentLesson';
 import LessonAnalytics from './components/LessonAnalytics';
-import { LogIn, LogOut, BookOpen, BarChart3, PlusCircle, GraduationCap, UserCircle, Headphones, Mic, PenTool, ChevronRight, X, Users } from 'lucide-react';
+import { LogIn, LogOut, BookOpen, BarChart3, PlusCircle, GraduationCap, UserCircle, Headphones, Mic, PenTool, ChevronRight, X, Users, ExternalLink, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { isInAppBrowser } from './lib/utils';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -78,6 +79,41 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
+function InAppBrowserWarning() {
+  if (!isInAppBrowser()) return null;
+
+  return (
+    <div className="bg-amber-50 border-b border-amber-100 px-4 py-3">
+      <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap">
+        <div className="flex items-center">
+          <span className="flex p-2 rounded-lg bg-amber-100">
+            <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden="true" />
+          </span>
+          <p className="ml-3 font-medium text-amber-800 text-sm sm:text-base">
+            <span className="md:hidden">Vui lòng mở bằng trình duyệt (Chrome/Safari) để đăng nhập.</span>
+            <span className="hidden md:inline">Google không cho phép đăng nhập trong ứng dụng này. Vui lòng mở bằng Chrome hoặc Safari.</span>
+          </p>
+        </div>
+        <div className="order-3 mt-2 flex-shrink-0 w-full sm:order-2 sm:mt-0 sm:w-auto">
+          <div className="rounded-md shadow-sm">
+            <button
+              onClick={() => {
+                const url = window.location.href;
+                navigator.clipboard.writeText(url);
+                alert("Đã copy link! Vui lòng dán vào Chrome hoặc Safari.");
+              }}
+              className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-amber-700 bg-white hover:bg-amber-50 transition-colors"
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Copy Link
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -127,6 +163,7 @@ export default function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
         <ErrorBoundary>
+          <InAppBrowserWarning />
           <nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
           <div className="w-full px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16 items-center">
