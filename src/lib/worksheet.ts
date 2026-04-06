@@ -33,9 +33,9 @@ export async function downloadWorksheet(lesson: Lesson) {
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: `Level: ${lesson.level}`, bold: true }),
-              new TextRun({ text: ` | Type: ${lesson.type.toUpperCase()}`, bold: true }),
-              new TextRun({ text: ` | Date: ${new Date(lesson.createdAt).toLocaleDateString()}`, bold: true }),
+              new TextRun({ text: `Level: ${lesson.level || 'N/A'}`, bold: true }),
+              new TextRun({ text: ` | Type: ${(lesson.type || 'listening').toUpperCase()}`, bold: true }),
+              new TextRun({ text: ` | Date: ${lesson.createdAt ? new Date(lesson.createdAt).toLocaleDateString() : 'N/A'}`, bold: true }),
             ],
             alignment: AlignmentType.CENTER,
             spacing: { after: 600 },
@@ -43,7 +43,7 @@ export async function downloadWorksheet(lesson: Lesson) {
 
           // Content (Passage or Script)
           new Paragraph({
-            text: lesson.type === 'reading' ? 'READING PASSAGE' : 'LISTENING SCRIPT',
+            text: (lesson.type === 'reading' || lesson.passage) ? 'READING PASSAGE' : 'LISTENING SCRIPT',
             heading: HeadingLevel.HEADING_2,
             alignment: AlignmentType.LEFT,
             spacing: { before: 400, after: 200 },
@@ -51,7 +51,7 @@ export async function downloadWorksheet(lesson: Lesson) {
           new Paragraph({
             children: [
               new TextRun({
-                text: lesson.type === 'reading' ? (lesson.passage || '') : (lesson.script || ''),
+                text: lesson.passage || lesson.script || '',
                 size: 24, // 12pt
               }),
             ],
@@ -68,9 +68,9 @@ export async function downloadWorksheet(lesson: Lesson) {
           ...(lesson.vocabulary || []).map(v => 
             new Paragraph({
               children: [
-                new TextRun({ text: `• ${v.word} `, bold: true, size: 22 }),
-                new TextRun({ text: `(${v.ipa}): `, italics: true, size: 22 }),
-                new TextRun({ text: `${v.vietnameseDefinition}`, size: 22 }),
+                new TextRun({ text: `• ${v.word || ''} `, bold: true, size: 22 }),
+                new TextRun({ text: `(${v.ipa || ''}): `, italics: true, size: 22 }),
+                new TextRun({ text: `${v.vietnameseDefinition || ''}`, size: 22 }),
               ],
               indent: { left: 360 },
               spacing: { after: 100 },
@@ -84,12 +84,12 @@ export async function downloadWorksheet(lesson: Lesson) {
             heading: HeadingLevel.HEADING_2,
             spacing: { before: 600, after: 200 },
           }),
-          ...(lesson.type === 'reading' ? (lesson.readingQuestions || []) : (lesson.steps?.step4?.questions || [])).map((q, i) => {
+          ...(lesson.readingQuestions || lesson.steps?.step4?.questions || []).map((q, i) => {
             const questionParagraphs = [
               new Paragraph({
                 children: [
                   new TextRun({ text: `${i + 1}. `, bold: true, size: 24 }),
-                  new TextRun({ text: q.question, size: 24 }),
+                  new TextRun({ text: q.question || '', size: 24 }),
                 ],
                 spacing: { before: 300, after: 150 },
               })
@@ -101,7 +101,7 @@ export async function downloadWorksheet(lesson: Lesson) {
                   new Paragraph({
                     children: [
                       new TextRun({ text: `${String.fromCharCode(65 + optIdx)}. `, bold: true, size: 22 }),
-                      new TextRun({ text: opt, size: 22 }),
+                      new TextRun({ text: opt || '', size: 22 }),
                     ],
                     indent: { left: 720 },
                     spacing: { after: 80 },
@@ -129,10 +129,10 @@ export async function downloadWorksheet(lesson: Lesson) {
             alignment: AlignmentType.CENTER,
             spacing: { after: 600 },
           }),
-          ...(lesson.type === 'reading' ? (lesson.readingQuestions || []) : (lesson.steps?.step4?.questions || [])).map((q, i) => {
-            let answerText = q.answer.toString();
+          ...(lesson.readingQuestions || lesson.steps?.step4?.questions || []).map((q, i) => {
+            let answerText = String(q.answer ?? '');
             if (q.options && q.options.length > 0) {
-              const idx = typeof q.answer === 'number' ? q.answer : parseInt(q.answer);
+              const idx = typeof q.answer === 'number' ? q.answer : parseInt(String(q.answer));
               if (!isNaN(idx) && q.options[idx]) {
                 answerText = `${String.fromCharCode(65 + idx)}. ${q.options[idx]}`;
               }
@@ -149,7 +149,7 @@ export async function downloadWorksheet(lesson: Lesson) {
               new Paragraph({
                 children: [
                   new TextRun({ text: 'Explanation: ', italics: true, bold: true, size: 20, color: '666666' }),
-                  new TextRun({ text: q.explanation, italics: true, size: 20, color: '666666' }),
+                  new TextRun({ text: q.explanation || '', italics: true, size: 20, color: '666666' }),
                 ],
                 indent: { left: 360 },
                 spacing: { after: 300 },

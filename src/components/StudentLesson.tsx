@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { doc, getDoc, addDoc, collection } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { Lesson, Result } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Volume2, CheckCircle2, ArrowRight, Play, Pause, RotateCcw, 
   Check, X, Trophy, Share2, User, ChevronRight, ChevronLeft,
   Info, Type as TypeIcon, FileText, HelpCircle, BookOpen,
-  GraduationCap, Headphones, Mail, AlertCircle, Loader2
+  GraduationCap, Headphones, Mail, AlertCircle, Loader2,
+  Mic, Square
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { cn } from '../lib/utils';
@@ -30,17 +32,47 @@ export default function StudentLesson() {
   const [audioPracticeIndex, setAudioPracticeIndex] = useState(0);
   const [dictationFeedback, setDictationFeedback] = useState<{ word: string; isCorrect: boolean }[][]>([]);
   const [answers, setAnswers] = useState<any>({
+    step2: [], // Vocabulary Review (Pronunciation)
     step4: [], // Dictation
     step5: [], // Gap-fill
     step6: [], // MCQ
     reading: [] // Reading questions
   });
+  const [isRecording, setIsRecording] = useState(false);
+  const [pronunciationScore, setPronunciationScore] = useState<number | null>(null);
+  const [recognizedText, setRecognizedText] = useState("");
   const [readingChecked, setReadingChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [gapFillChecked, setGapFillChecked] = useState(false);
   const [mcqChecked, setMcqChecked] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [user, setUser] = useState(auth.currentUser);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      if (user) {
+        setStudentName(user.displayName || '');
+        setStudentEmail(user.email || '');
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      if (result.user) {
+        setStudentName(result.user.displayName || '');
+        setStudentEmail(result.user.email || '');
+      }
+    } catch (error) {
+      console.error("Error signing in with Google:", error);
+      setError("Failed to sign in with Google. Please try again.");
+    }
+  };
 
   useEffect(() => {
     const fetchLesson = async () => {
@@ -50,7 +82,7 @@ export default function StudentLesson() {
       if (docSnap.exists()) {
         const data = docSnap.data() as Lesson;
         setLesson({ id: docSnap.id, ...data } as Lesson);
-        if (data.type === 'listening' && data.steps) {
+        if (data.type === 'listening' && data.steps?.step2?.phrases) {
           setDictationFeedback(new Array(data.steps.step2.phrases.length).fill([]));
         }
       }
@@ -88,35 +120,96 @@ export default function StudentLesson() {
   };
 
   const checkDictation = (index: number) => {
-    if (!lesson || !lesson.steps) return;
-    const correctPhrase = lesson.steps.step2.phrases[index].toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "").trim();
-    const userPhrase = (answers.step4[index] || "").toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "").trim();
+    if (!lesson || !lesson.steps?.step2?.phrases?.[index]) return;
+    const normalize = (text: string) => 
+      text.toLowerCase()
+        .replace(/[’‘]/g, "'")
+        .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "")
+        .trim();
+
+    const correctPhrase = normalize(lesson.steps.step2.phrases[index]);
+    const userPhrase = normalize(answers.step4[index] || "");
     
     const correctWords = correctPhrase.split(/\s+/);
     const userWords = userPhrase.split(/\s+/);
     
-    const isFullyCorrect = correctPhrase === userPhrase;
-
     const feedback = correctWords.map((word, i) => ({
       word,
       isCorrect: userWords[i] === word
     }));
     
+    const correctCount = feedback.filter(f => f.isCorrect).length;
+    const accuracy = correctCount / correctWords.length;
+    const isPassed = accuracy >= 0.8;
+
     const newFeedback = [...dictationFeedback];
-    // Only show word-by-word if fully correct, otherwise show as "all wrong" or just don't show breakdown
-    // User said: "chỉ khi nào học viên ghi đúng tất cả các từ mới thể hiện đáp án"
-    if (isFullyCorrect) {
+    if (isPassed) {
       newFeedback[index] = feedback;
     } else {
-      // Show all as incorrect or just a special state
       newFeedback[index] = feedback.map(f => ({ ...f, isCorrect: false }));
     }
     setDictationFeedback(newFeedback);
   };
 
+  const startRecording = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Trình duyệt của bạn không hỗ trợ nhận diện giọng nói. Vui lòng sử dụng Chrome.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+      setPronunciationScore(null);
+      setRecognizedText("");
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setRecognizedText(transcript);
+      
+      const targetWord = lesson?.steps?.step1_5?.questions?.[reviewIndex]?.word || "";
+      const score = calculateSimilarity(transcript, targetWord);
+      setPronunciationScore(score);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error", event.error);
+      setIsRecording(false);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
+    recognition.start();
+  };
+
+  const calculateSimilarity = (s1: string, s2: string) => {
+    const normalize = (text: string) => 
+      text.toLowerCase()
+        .replace(/[’‘]/g, "'")
+        .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "")
+        .trim();
+    const w1 = normalize(s1).split(/\s+/);
+    const w2 = normalize(s2).split(/\s+/);
+    
+    let matches = 0;
+    w2.forEach(word => {
+      if (w1.includes(word)) matches++;
+    });
+    
+    return Math.round((matches / w2.length) * 100);
+  };
+
   const calculateScore = () => {
     if (!lesson) return 0;
-    if (lesson.type === 'reading') {
+    if (lessonType === 'reading') {
       const correct = (answers.reading || []).filter((a: any, i: number) => {
         const q = lesson.readingQuestions?.[i];
         if (!q) return false;
@@ -126,22 +219,62 @@ export default function StudentLesson() {
       return Math.round((correct / (lesson.readingQuestions?.length || 1)) * 100) / 10;
     }
     
-    let score = 0;
     if (lesson.steps) {
+      const step2Count = lesson.steps.step1_5?.questions?.length || 0;
+      const step3Count = lesson.steps.step1_6?.questions?.length || 0;
+      const step4Count = lesson.steps.step2?.phrases?.length || 0;
+      const step5Count = lesson.steps.step3?.blanks?.length || 0;
+      const step6Count = lesson.steps.step4?.questions?.length || 0;
+
+      const totalQuestions = step2Count + step3Count + step4Count + step5Count + step6Count;
+      if (totalQuestions === 0) return 0;
+
+      // Step 2: Vocabulary Review (Pronunciation)
+      const step2Correct = (answers.step2 || []).filter((a: boolean) => a === true).length;
+      
+      // Step 3 is mandatory to proceed, so it is always correct if we reach result
+      let correctCount = step2Correct + step3Count;
+
+      // Step 4: Phrase Dictation
+      const correctPhrases = (answers.step4 || []).filter((a: string, i: number) => {
+        if (!lesson.steps?.step2?.phrases?.[i]) return false;
+        const normalize = (text: string) => 
+          text.toLowerCase()
+            .replace(/[’‘]/g, "'")
+            .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "")
+            .trim();
+
+        const correctPhrase = normalize(lesson.steps.step2.phrases[i]);
+        const userPhrase = normalize(a || "");
+        
+        const correctWords = correctPhrase.split(/\s+/);
+        const userWords = userPhrase.split(/\s+/);
+        
+        let correctCount = 0;
+        correctWords.forEach((word, idx) => {
+          if (userWords[idx] === word) correctCount++;
+        });
+        
+        return (correctCount / correctWords.length) >= 0.8;
+      }).length;
+      correctCount += correctPhrases;
+
       // Step 5: Gap-fill
       const correctBlanks = (answers.step5 || []).filter((a: string, i: number) => 
-        a?.toLowerCase().trim() === lesson.steps!.step3.blanks[i].toLowerCase().trim()
+        a?.toLowerCase().trim() === (lesson.steps?.step3?.blanks?.[i] || '').toLowerCase().trim()
       ).length;
-      score += (correctBlanks / lesson.steps.step3.blanks.length) * 5;
+      correctCount += correctBlanks;
 
       // Step 6: MCQs
       const correctMCQs = (answers.step6 || []).filter((a: number, i: number) => 
-        a === lesson.steps!.step4.questions[i].answer
+        a === lesson.steps?.step4?.questions?.[i]?.answer
       ).length;
-      score += (correctMCQs / lesson.steps.step4.questions.length) * 5;
+      correctCount += correctMCQs;
+
+      return Math.round((correctCount / totalQuestions) * 100) / 10;
     }
 
-    return Math.round(score * 10) / 10;
+    return 0;
   };
 
   const submitResult = async () => {
@@ -154,18 +287,41 @@ export default function StudentLesson() {
       
       // Build details object carefully to avoid undefined values
       const details: any = {};
-      if (lesson.type === 'listening') {
+      if (lessonType === 'listening') {
         details.step1 = true;
         details.step2 = true;
         if (lesson.steps) {
-          details.step3 = (answers.step5 || []).filter((a: string, i: number) => 
-            a?.toLowerCase().trim() === lesson.steps!.step3.blanks[i].toLowerCase().trim()
+          details.step2_correct = (answers.step2 || []).filter((a: boolean) => a === true).length;
+          details.step3_correct = lesson.steps.step1_6?.questions?.length || 0;
+          details.step4_correct = (answers.step4 || []).filter((a: string, i: number) => {
+            if (!lesson.steps?.step2?.phrases?.[i]) return false;
+            const normalize = (text: string) => 
+              text.toLowerCase()
+                .replace(/[’‘]/g, "'")
+                .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "")
+                .trim();
+
+            const correctPhrase = normalize(lesson.steps.step2.phrases[i]);
+            const userPhrase = normalize(a || "");
+            
+            const correctWords = correctPhrase.split(/\s+/);
+            const userWords = userPhrase.split(/\s+/);
+            
+            let correctCount = 0;
+            correctWords.forEach((word, idx) => {
+              if (userWords[idx] === word) correctCount++;
+            });
+            
+            return (correctCount / correctWords.length) >= 0.8;
+          }).length;
+          details.step5_correct = (answers.step5 || []).filter((a: string, i: number) => 
+            a?.toLowerCase().trim() === (lesson.steps?.step3?.blanks?.[i] || '').toLowerCase().trim()
           ).length;
-          details.step4 = (answers.step6 || []).filter((a: number, i: number) => 
-            a === lesson.steps!.step4.questions[i].answer
+          details.step6_correct = (answers.step6 || []).filter((a: number, i: number) => 
+            a === (lesson.steps?.step4?.questions?.[i]?.answer)
           ).length;
         }
-      } else if (lesson.type === 'reading') {
+      } else if (lessonType === 'reading') {
         details.reading = (answers.reading || []).filter((a: any, i: number) => {
           const q = lesson.readingQuestions?.[i];
           if (!q) return false;
@@ -199,15 +355,31 @@ export default function StudentLesson() {
     }
   };
 
-  if (loading) return <div className="text-center py-12">Loading lesson...</div>;
-  if (!lesson) return <div className="text-center py-12 text-red-500">Lesson not found.</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+      <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
+      <p className="text-slate-500 font-medium animate-pulse">Loading lesson...</p>
+    </div>
+  );
+  
+  if (!lesson) return (
+    <div className="max-w-md mx-auto text-center py-20">
+      <div className="bg-red-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+        <AlertCircle className="w-8 h-8 text-red-500" />
+      </div>
+      <h2 className="text-2xl font-bold text-slate-900 mb-2">Lesson not found</h2>
+      <p className="text-slate-500 mb-6">The lesson you're looking for doesn't exist or has been removed.</p>
+      <button onClick={() => navigate('/')} className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold">Go Home</button>
+    </div>
+  );
 
+  const lessonType = lesson.type || 'listening';
   const currentUrl = window.location.href;
 
   return (
     <div className="w-full pb-20">
       <AnimatePresence mode="wait">
-        {lesson.type === 'reading' && step > 0 ? (
+        {lessonType === 'reading' && step > 0 ? (
           <motion.div 
             key="reading-content"
             initial={{ opacity: 0, y: 20 }}
@@ -468,38 +640,48 @@ export default function StudentLesson() {
               <BookOpen className="w-10 h-10 text-indigo-600" />
             </div>
             <h1 className="text-4xl font-extrabold text-slate-900 mb-4">{lesson.title}</h1>
-            <p className="text-slate-500 mb-10 text-lg">Welcome! Please enter your name to begin the lesson.</p>
             
-            <div className="max-w-sm mx-auto space-y-4">
-              <div className="relative group">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                <input 
-                  type="text"
-                  value={studentName}
-                  onChange={(e) => setStudentName(e.target.value)}
-                  placeholder="Họ và tên của bạn"
-                  className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-lg font-medium"
-                />
+            {!user ? (
+              <div className="max-w-sm mx-auto space-y-6">
+                <p className="text-slate-500 text-lg">Vui lòng đăng nhập bằng Gmail để bắt đầu bài học.</p>
+                <button 
+                  onClick={handleGoogleSignIn}
+                  className="w-full flex items-center justify-center space-x-3 bg-white text-slate-700 border-2 border-slate-100 py-4 rounded-xl font-bold text-lg hover:bg-slate-50 hover:border-slate-200 transition-all shadow-sm active:scale-95"
+                >
+                  <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
+                  <span>Đăng nhập với Google</span>
+                </button>
               </div>
-              <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                <input 
-                  type="email"
-                  value={studentEmail}
-                  onChange={(e) => setStudentEmail(e.target.value)}
-                  placeholder="Email (Gmail)"
-                  className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-lg font-medium"
-                />
+            ) : (
+              <div className="max-w-sm mx-auto space-y-6">
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-left">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Thông tin học viên</div>
+                  <div className="flex items-center space-x-4">
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt={user.displayName || ''} className="w-12 h-12 rounded-full border-2 border-white shadow-sm" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xl">
+                        {(user.displayName || 'U').charAt(0)}
+                      </div>
+                    )}
+                    <div>
+                      <div className="font-bold text-slate-900">{user.displayName}</div>
+                      <div className="text-sm text-slate-500">{user.email}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setStep(1)}
+                  className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white py-4 rounded-xl font-bold text-xl hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 active:scale-95"
+                >
+                  <span>Bắt đầu bài học</span>
+                  <ArrowRight className="w-6 h-6" />
+                </button>
               </div>
-              <button 
-                onClick={() => studentName && studentEmail && setStep(1)}
-                disabled={!studentName || !studentEmail}
-                className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white py-4 rounded-xl font-bold text-xl hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-              >
-                <span>Bắt đầu bài học</span>
-                <ArrowRight className="w-6 h-6" />
-              </button>
-              
+            )}
+            
+            <div className="max-w-sm mx-auto mt-8">
               <button 
                 onClick={() => setShowQR(!showQR)}
                 className="flex items-center space-x-2 text-slate-400 hover:text-indigo-600 transition-colors mx-auto text-sm font-medium"
@@ -522,22 +704,7 @@ export default function StudentLesson() {
           </motion.div>
         )}
 
-        {step > 0 && step < 7 && (
-          <div className="fixed bottom-8 right-8 z-50">
-            <button 
-              onClick={() => setIsSlow(!isSlow)}
-              className={cn(
-                "flex items-center space-x-2 px-6 py-3 rounded-full font-bold shadow-lg transition-all active:scale-95",
-                isSlow ? "bg-amber-500 text-white" : "bg-white text-slate-600 border border-slate-200"
-              )}
-            >
-              <RotateCcw className={cn("w-5 h-5", isSlow && "animate-spin-slow")} />
-              <span>{isSlow ? "Slow Mode ON" : "Slow Mode OFF"}</span>
-            </button>
-          </div>
-        )}
-
-        {lesson.type === 'listening' && step === 1 && (
+        {lessonType === 'listening' && step === 1 && (
           <motion.div 
             key="step1"
             initial={{ opacity: 0, x: 50 }}
@@ -547,28 +714,34 @@ export default function StudentLesson() {
           >
             <StepHeader current={1} total={6} title="Meaning & Pronunciation" icon={BookOpen} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {lesson.steps?.step1?.vocabulary.map((v, i) => (
-                <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h3 className="text-2xl font-bold text-slate-900">{v.word}</h3>
-                      <span className="text-indigo-600 font-mono text-sm">{v.ipa}</span>
+              {(lesson.steps?.step1?.vocabulary || []).length > 0 ? (
+                (lesson.steps?.step1?.vocabulary || []).map((v, i) => (
+                  <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h3 className="text-2xl font-bold text-slate-900">{v.word}</h3>
+                        <span className="text-indigo-600 font-mono text-sm">{v.ipa}</span>
+                      </div>
+                      <button 
+                        onClick={() => speak(v.word)}
+                        className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all"
+                      >
+                        <Volume2 className="w-5 h-5" />
+                      </button>
                     </div>
-                    <button 
-                      onClick={() => speak(v.word)}
-                      className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all"
-                    >
-                      <Volume2 className="w-5 h-5" />
-                    </button>
+                    <div className="space-y-2 mb-4">
+                      <p className="text-indigo-600 font-bold italic text-lg">Nghĩa: {v.vietnameseDefinition}</p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border-l-4 border-indigo-200 italic text-slate-500 text-sm">
+                      "{v.example}"
+                    </div>
                   </div>
-                  <div className="space-y-2 mb-4">
-                    <p className="text-indigo-600 font-bold italic text-lg">Nghĩa: {v.vietnameseDefinition}</p>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-xl border-l-4 border-indigo-200 italic text-slate-500 text-sm">
-                    "{v.example}"
-                  </div>
+                ))
+              ) : (
+                <div className="col-span-full bg-white p-12 rounded-3xl border border-slate-200 text-center">
+                  <p className="text-slate-500 italic">No vocabulary found for this lesson.</p>
                 </div>
-              ))}
+              )}
             </div>
             <div className="flex justify-end pt-8">
               <button 
@@ -582,7 +755,7 @@ export default function StudentLesson() {
           </motion.div>
         )}
 
-        {lesson.type === 'listening' && step === 2 && (
+        {lessonType === 'listening' && step === 2 && (
           <motion.div 
             key="step2"
             initial={{ opacity: 0, x: 50 }}
@@ -593,12 +766,12 @@ export default function StudentLesson() {
             <StepHeader current={2} total={6} title="Vocabulary Review" icon={GraduationCap} />
             <div className="max-w-2xl mx-auto bg-white p-10 rounded-3xl border border-slate-200 shadow-sm text-center">
               <div className="mb-8">
-                <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Question {reviewIndex + 1} of {lesson.steps?.step1_5?.questions.length}</div>
-                <h3 className="text-4xl font-black text-slate-900 mb-4">{lesson.steps?.step1_5?.questions[reviewIndex].word}</h3>
+                <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Question {reviewIndex + 1} of {lesson.steps?.step1_5?.questions?.length || 0}</div>
+                <h3 className="text-4xl font-black text-slate-900 mb-4">{lesson.steps?.step1_5?.questions?.[reviewIndex]?.word}</h3>
                 <button 
                   onClick={() => {
-                    if (lesson.steps) {
-                      speak(lesson.steps.step1_5?.questions[reviewIndex].word);
+                    if (lesson.steps?.step1_5?.questions?.[reviewIndex]) {
+                      speak(lesson.steps.step1_5.questions[reviewIndex].word);
                       setReviewListenCount(prev => prev + 1);
                     }
                   }}
@@ -613,88 +786,116 @@ export default function StudentLesson() {
                 </button>
                 {reviewListenCount < 3 && (
                   <p className="mt-4 text-amber-600 text-sm font-bold">
-                    Nghe thêm {3 - reviewListenCount} lần nữa để hiện đáp án
+                    Nghe thêm {3 - reviewListenCount} lần nữa để hiện nút ghi âm
                   </p>
                 )}
               </div>
 
-              {reviewListenCount >= 3 && lesson.steps && (
-                <div className="grid grid-cols-1 gap-4">
-                  {lesson.steps.step1_5?.questions[reviewIndex].options.map((opt, i) => (
+              {reviewListenCount >= 3 && (
+                <div className="space-y-6">
+                  <div className="flex flex-col items-center space-y-4">
                     <button 
-                      key={i}
-                      disabled={!!reviewFeedback}
-                      onClick={() => {
-                        if (lesson.steps) {
-                          const isCorrect = i === lesson.steps.step1_5?.questions[reviewIndex].answer;
-                          setReviewFeedback({
-                            isCorrect,
-                            explanation: lesson.steps.step1_5?.questions[reviewIndex].explanation
-                          });
-                          if (isCorrect) speak("Correct");
-                          else speak("Incorrect");
-                        }
-                      }}
+                      onClick={startRecording}
+                      disabled={isRecording || (pronunciationScore !== null && pronunciationScore >= 80)}
                       className={cn(
-                        "w-full p-4 rounded-xl border-2 transition-all font-bold text-lg",
-                        reviewFeedback 
-                          ? i === lesson.steps.step1_5?.questions[reviewIndex].answer
-                            ? "bg-emerald-50 border-emerald-500 text-emerald-700"
-                            : reviewFeedback.isCorrect === false && i !== lesson.steps.step1_5?.questions[reviewIndex].answer
-                              ? "bg-slate-50 border-slate-100 text-slate-400"
-                              : "bg-slate-50 border-slate-100 text-slate-400"
-                          : "border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 text-slate-700"
+                        "w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-lg",
+                        isRecording ? "bg-red-500 animate-pulse" : "bg-indigo-600 hover:bg-indigo-700",
+                        (pronunciationScore !== null && pronunciationScore >= 80) && "bg-emerald-500 cursor-default"
                       )}
                     >
-                      {opt}
+                      {isRecording ? <Square className="w-8 h-8 text-white" /> : <Mic className="w-8 h-8 text-white" />}
                     </button>
-                  ))}
-                </div>
-              )}
-
-              {reviewFeedback && lesson.steps && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={cn(
-                    "mt-8 p-6 rounded-2xl border text-left",
-                    reviewFeedback.isCorrect ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100"
-                  )}
-                >
-                  <div className="flex items-center space-x-2 mb-2">
-                    {reviewFeedback.isCorrect ? <CheckCircle2 className="text-emerald-600" /> : <X className="text-red-600" />}
-                    <span className={cn("font-bold", reviewFeedback.isCorrect ? "text-emerald-700" : "text-red-700")}>
-                      {reviewFeedback.isCorrect ? "Chính xác!" : "Chưa đúng!"}
-                    </span>
+                    <p className="text-slate-500 font-medium">
+                      {isRecording ? "Đang lắng nghe..." : "Bấm để phát âm lại"}
+                    </p>
                   </div>
-                  <p className="text-slate-600">{reviewFeedback.explanation}</p>
-                  <button 
-                    onClick={() => {
-                      if (reviewFeedback.isCorrect && lesson.steps) {
-                        setReviewFeedback(null);
-                        setReviewListenCount(0);
-                        if (reviewIndex < lesson.steps.step1_5?.questions.length - 1) {
-                          setReviewIndex(reviewIndex + 1);
-                        } else {
-                          setStep(3);
-                        }
-                      } else {
-                        setReviewFeedback(null);
-                      }
-                    }}
-                    className="mt-4 w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-all"
-                  >
-                    {reviewFeedback.isCorrect 
-                      ? (reviewIndex < lesson.steps.step1_5?.questions.length - 1 ? "Next Question" : "Next Step")
-                      : "Thử lại"}
-                  </button>
-                </motion.div>
+
+                  {recognizedText && (
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Bạn đã nói:</div>
+                      <div className="text-xl font-bold text-slate-700 italic">"{recognizedText}"</div>
+                    </div>
+                  )}
+
+                  {pronunciationScore !== null && (
+                    <div className={cn(
+                      "p-6 rounded-2xl border text-center",
+                      pronunciationScore >= 80 ? "bg-emerald-50 border-emerald-100" : "bg-amber-50 border-amber-100"
+                    )}>
+                      <div className="text-4xl font-black mb-2" style={{ color: pronunciationScore >= 80 ? '#059669' : '#d97706' }}>
+                        {pronunciationScore}%
+                      </div>
+                      <p className={cn("font-bold", pronunciationScore >= 80 ? "text-emerald-700" : "text-amber-700")}>
+                        {pronunciationScore >= 80 ? "Phát âm tuyệt vời!" : "Phát âm chưa đạt, hãy thử lại!"}
+                      </p>
+                      
+                      {pronunciationScore >= 80 && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mt-4 pt-4 border-t border-emerald-100"
+                        >
+                          <div className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">Nghĩa Tiếng Việt:</div>
+                          <div className="text-2xl font-bold text-emerald-900">
+                            {lesson.steps?.step1_5?.questions?.[reviewIndex]?.options[lesson.steps?.step1_5?.questions?.[reviewIndex]?.answer]}
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex space-x-4 pt-4">
+                    {pronunciationScore !== null && pronunciationScore < 80 && (
+                      <button 
+                        onClick={() => {
+                          const newAnswers = [...answers.step2];
+                          newAnswers[reviewIndex] = false;
+                          setAnswers({ ...answers, step2: newAnswers });
+                          
+                          if (reviewIndex < (lesson.steps?.step1_5?.questions?.length || 0) - 1) {
+                            setReviewIndex(reviewIndex + 1);
+                            setReviewListenCount(0);
+                            setPronunciationScore(null);
+                            setRecognizedText("");
+                          } else {
+                            setStep(3);
+                          }
+                        }}
+                        className="flex-1 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all"
+                      >
+                        Bỏ qua từ này
+                      </button>
+                    )}
+                    
+                    {(pronunciationScore !== null && pronunciationScore >= 80) && (
+                      <button 
+                        onClick={() => {
+                          const newAnswers = [...answers.step2];
+                          newAnswers[reviewIndex] = true;
+                          setAnswers({ ...answers, step2: newAnswers });
+
+                          if (reviewIndex < (lesson.steps?.step1_5?.questions?.length || 0) - 1) {
+                            setReviewIndex(reviewIndex + 1);
+                            setReviewListenCount(0);
+                            setPronunciationScore(null);
+                            setRecognizedText("");
+                          } else {
+                            setStep(3);
+                          }
+                        }}
+                        className="flex-1 bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg"
+                      >
+                        {reviewIndex < (lesson.steps?.step1_5?.questions?.length || 0) - 1 ? "Từ tiếp theo" : "Hoàn thành bước này"}
+                      </button>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </motion.div>
         )}
 
-        {lesson.type === 'listening' && step === 3 && (
+        {lessonType === 'listening' && step === 3 && (
           <motion.div 
             key="step3"
             initial={{ opacity: 0, x: 50 }}
@@ -705,12 +906,12 @@ export default function StudentLesson() {
             <StepHeader current={3} total={6} title="Audio Practice" icon={Headphones} />
             <div className="max-w-2xl mx-auto bg-white p-10 rounded-3xl border border-slate-200 shadow-sm text-center">
               <div className="mb-8">
-                <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Question {audioPracticeIndex + 1} of {lesson.steps?.step1_6?.questions.length}</div>
+                <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Question {audioPracticeIndex + 1} of {lesson.steps?.step1_6?.questions?.length || 0}</div>
                 <h3 className="text-2xl font-bold text-slate-500 mb-6">Listen and choose the correct word</h3>
                 <button 
                   onClick={() => {
-                    if (lesson.steps) {
-                      speak(lesson.steps.step1_6?.questions[audioPracticeIndex].word);
+                    if (lesson.steps?.step1_6?.questions?.[audioPracticeIndex]) {
+                      speak(lesson.steps.step1_6.questions[audioPracticeIndex].word);
                     }
                   }}
                   className="p-8 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-95"
@@ -720,13 +921,13 @@ export default function StudentLesson() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                {lesson.steps?.step1_6?.questions[audioPracticeIndex].options.map((opt, i) => (
+                {(lesson.steps?.step1_6?.questions?.[audioPracticeIndex]?.options || []).map((opt, i) => (
                   <button 
                     key={i}
                     onClick={() => {
-                      if (lesson.steps && i === lesson.steps.step1_6?.questions[audioPracticeIndex].answer) {
+                      if (lesson.steps?.step1_6?.questions?.[audioPracticeIndex] && i === lesson.steps.step1_6.questions[audioPracticeIndex].answer) {
                         speak("Correct");
-                        if (audioPracticeIndex < lesson.steps.step1_6?.questions.length - 1) {
+                        if (audioPracticeIndex < (lesson.steps.step1_6.questions?.length || 0) - 1) {
                           setAudioPracticeIndex(audioPracticeIndex + 1);
                         } else {
                           setStep(4);
@@ -745,7 +946,7 @@ export default function StudentLesson() {
           </motion.div>
         )}
 
-        {lesson.type === 'listening' && step === 4 && (
+        {lessonType === 'listening' && step === 4 && (
           <motion.div 
             key="step4"
             initial={{ opacity: 0, x: 50 }}
@@ -755,7 +956,7 @@ export default function StudentLesson() {
           >
             <StepHeader current={4} total={6} title="Phrase Dictation" icon={TypeIcon} />
             <div className="space-y-6">
-              {lesson.steps?.step2.phrases.map((phrase, i) => (
+              {(lesson.steps?.step2?.phrases || []).map((phrase, i) => (
                 <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                   <div className="flex items-center space-x-4">
                     <span className="text-2xl font-black text-slate-300 w-10">{(i + 1).toString().padStart(2, '0')}</span>
@@ -798,27 +999,40 @@ export default function StudentLesson() {
                   
                   {dictationFeedback[i] && dictationFeedback[i].length > 0 && (
                     <div className="flex flex-wrap gap-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                      {dictationFeedback[i].every(item => item.isCorrect) ? (
-                        <>
-                          {dictationFeedback[i].map((item, idx) => (
-                            <span 
-                              key={idx}
-                              className="px-2 py-1 rounded font-bold text-lg text-emerald-600"
-                            >
-                              {item.word}
-                            </span>
-                          ))}
-                          <div className="w-full mt-2 flex items-center space-x-2 text-emerald-600 font-bold">
-                            <CheckCircle2 className="w-5 h-5" />
-                            <span>Correct! Well done.</span>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="w-full flex items-center space-x-2 text-red-500 font-bold">
-                          <X className="w-5 h-5" />
-                          <span>Still has incorrect words. Listen again!</span>
-                        </div>
-                      )}
+                      {(() => {
+                        const feedback = dictationFeedback[i];
+                        const correctCount = feedback.filter((f: any) => f.isCorrect).length;
+                        const isPassed = (correctCount / feedback.length) >= 0.8;
+                        
+                        if (isPassed) {
+                          return (
+                            <>
+                              {feedback.map((item: any, idx: number) => (
+                                <span 
+                                  key={idx}
+                                  className={cn(
+                                    "px-2 py-1 rounded font-bold text-lg",
+                                    item.isCorrect ? "text-emerald-600" : "text-amber-500 bg-amber-50"
+                                  )}
+                                >
+                                  {item.word}
+                                </span>
+                              ))}
+                              <div className="w-full mt-2 flex items-center space-x-2 text-emerald-600 font-bold">
+                                <CheckCircle2 className="w-5 h-5" />
+                                <span>{correctCount === feedback.length ? "Correct! Well done." : "Good enough! (80%+ correct)"}</span>
+                              </div>
+                            </>
+                          );
+                        } else {
+                          return (
+                            <div className="w-full flex items-center space-x-2 text-red-500 font-bold">
+                              <X className="w-5 h-5" />
+                              <span>Still has many incorrect words. Listen again!</span>
+                            </div>
+                          );
+                        }
+                      })()}
                     </div>
                   )}
                 </div>
@@ -840,7 +1054,7 @@ export default function StudentLesson() {
           </motion.div>
         )}
 
-        {lesson.type === 'listening' && step === 5 && (
+        {lessonType === 'listening' && step === 5 && (
           <motion.div 
             key="step5"
             initial={{ opacity: 0, x: 50 }}
@@ -879,7 +1093,7 @@ export default function StudentLesson() {
               </div>
 
               <div className="whitespace-pre-wrap">
-                {lesson.steps?.step3?.gapFillText.replace(/\[\d+\]/g, '[BLANK]').split('[BLANK]').map((part, i, arr) => (
+                {(lesson.steps?.step3?.gapFillText || '').replace(/\[\d+\]/g, '[BLANK]').split('[BLANK]').map((part, i, arr) => (
                   <span key={i}>
                     {part}
                     {i < arr.length - 1 && (
@@ -894,7 +1108,7 @@ export default function StudentLesson() {
                         className={cn(
                           "mx-2 px-3 py-1 w-32 border-b-2 outline-none font-bold bg-indigo-50/30 rounded-t-lg transition-all text-center",
                           gapFillChecked 
-                            ? (answers.step5[i] || '').toLowerCase().trim() === lesson.steps?.step3?.blanks[i].toLowerCase().trim()
+                            ? (answers.step5[i] || '').toLowerCase().trim() === (lesson.steps?.step3?.blanks?.[i] || '').toLowerCase().trim()
                               ? "border-emerald-500 text-emerald-600 bg-emerald-50"
                               : "border-red-500 text-red-600 bg-red-50"
                             : "border-indigo-300 focus:border-indigo-600 text-indigo-600"
@@ -929,7 +1143,7 @@ export default function StudentLesson() {
           </motion.div>
         )}
 
-        {lesson.type === 'listening' && step === 6 && (
+        {lessonType === 'listening' && step === 6 && (
           <motion.div 
             key="step6"
             initial={{ opacity: 0, x: 50 }}
@@ -956,11 +1170,11 @@ export default function StudentLesson() {
             )}
 
             <div className="space-y-6">
-              {lesson.steps?.step4?.questions.map((q, i) => (
+              {(lesson.steps?.step4?.questions || []).map((q, i) => (
                 <div key={i} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
                   <h3 className="text-xl font-bold text-slate-900">{i + 1}. {q.question}</h3>
                   <div className="grid grid-cols-1 gap-3">
-                    {q.options.map((opt, optIdx) => (
+                    {(q.options || []).map((opt, optIdx) => (
                       <button 
                         key={optIdx}
                         onClick={() => {
@@ -1088,16 +1302,52 @@ export default function StudentLesson() {
               <div className="text-sm font-bold text-slate-400 uppercase tracking-widest">Total Score</div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-10">
-              {lesson.type === 'listening' ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10">
+              {lessonType === 'listening' ? (
                 <>
-                  <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                    <div className="text-2xl font-bold text-slate-900">{(answers.step5 || []).filter((a: string, i: number) => a?.toLowerCase().trim() === lesson.steps?.step3?.blanks[i].toLowerCase().trim()).length} / {lesson.steps?.step3?.blanks.length}</div>
-                    <div className="text-xs font-bold text-slate-400 uppercase mt-1">Gap-fill</div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="text-xl font-bold text-slate-900">
+                      {(lesson.steps?.step1_5?.questions?.length || 0) + (lesson.steps?.step1_6?.questions?.length || 0)} / {(lesson.steps?.step1_5?.questions?.length || 0) + (lesson.steps?.step1_6?.questions?.length || 0)}
+                    </div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase mt-1">Vocab (Step 2&3)</div>
                   </div>
-                  <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                    <div className="text-2xl font-bold text-slate-900">{(answers.step6 || []).filter((a: number, i: number) => a === lesson.steps?.step4?.questions[i].answer).length} / {lesson.steps?.step4?.questions.length}</div>
-                    <div className="text-xs font-bold text-slate-400 uppercase mt-1">MCQs</div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="text-xl font-bold text-slate-900">
+                      {(answers.step4 || []).filter((a: string, i: number) => {
+                        if (!lesson.steps?.step2?.phrases?.[i]) return false;
+                        const normalize = (text: string) => 
+                          text.toLowerCase()
+                            .replace(/[’‘]/g, "'")
+                            .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "")
+                            .trim();
+
+                        const correctPhrase = normalize(lesson.steps.step2.phrases[i]);
+                        const userPhrase = normalize(a || "");
+                        
+                        const correctWords = correctPhrase.split(/\s+/);
+                        const userWords = userPhrase.split(/\s+/);
+                        
+                        let correctCount = 0;
+                        correctWords.forEach((word, idx) => {
+                          if (userWords[idx] === word) correctCount++;
+                        });
+                        
+                        return (correctCount / correctWords.length) >= 0.8;
+                      }).length} / {lesson.steps?.step2?.phrases?.length || 0}
+                    </div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase mt-1">Dictation (Step 4)</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="text-xl font-bold text-slate-900">
+                      {(answers.step5 || []).filter((a: string, i: number) => a?.toLowerCase().trim() === (lesson.steps?.step3?.blanks?.[i] || '').toLowerCase().trim()).length} / {lesson.steps?.step3?.blanks?.length || 0}
+                    </div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase mt-1">Gap-fill (Step 5)</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm md:col-start-2">
+                    <div className="text-xl font-bold text-slate-900">
+                      {(answers.step6 || []).filter((a: number, i: number) => a === (lesson.steps?.step4?.questions?.[i]?.answer)).length} / {lesson.steps?.step4?.questions?.length || 0}
+                    </div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase mt-1">MCQs (Step 6)</div>
                   </div>
                 </>
               ) : (
@@ -1140,6 +1390,21 @@ export default function StudentLesson() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {step > 0 && step < 7 && (
+        <div className="fixed bottom-8 right-8 z-50">
+          <button 
+            onClick={() => setIsSlow(!isSlow)}
+            className={cn(
+              "flex items-center space-x-2 px-6 py-3 rounded-full font-bold shadow-lg transition-all active:scale-95",
+              isSlow ? "bg-amber-500 text-white" : "bg-white text-slate-600 border border-slate-200"
+            )}
+          >
+            <RotateCcw className={cn("w-5 h-5", isSlow && "animate-spin-slow")} />
+            <span>{isSlow ? "Slow Mode ON" : "Slow Mode OFF"}</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
