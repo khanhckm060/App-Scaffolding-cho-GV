@@ -4,23 +4,27 @@ import { ScaffoldingSteps, VocabularyItem } from "../types";
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function generateScaffolding(script: string, targetVocab: string[]): Promise<ScaffoldingSteps> {
-  const response = await ai.models.generateContent({
+  const result = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `You are an expert English teacher. Create a listening scaffolding lesson for students.
+    contents: `You are an expert English teacher. Create a listening scaffolding lesson for students based on the provided script and vocabulary.
     
     Input:
     - Script: ${script}
     - Target Vocabulary: ${targetVocab.join(", ")}
     
-    Requirements:
-    1. Step 1: Provide IPA, Vietnamese definition (NO English definition), and an example sentence for each target word.
-    2. Step 1.5 (Vocabulary Review): For each target word, create a multiple-choice question (4 options) where the student matches the English word to its Vietnamese definition. Include a short explanation in Vietnamese for why the answer is correct.
-    3. Step 1.6 (Audio Practice): For each target word, create a multiple-choice question (4 options) where the student hears the word and chooses the correct English word from the options.
-    4. Step 2 (Dictation): Create short phrases (3-7 words) from the script. Ensure ALL target vocabulary words are used across these phrases. Each phrase MUST contain at least one target word.
-    5. Step 3 (Gap-fill): Provide the script with the string "[BLANK]" replacing each target vocabulary word. Do NOT use numbers like [1], [2].
-    6. Step 4 (Comprehension): Create 3-5 multiple-choice questions about the script. For each question, provide a detailed explanation in Vietnamese of where the answer is found in the script.
+    Task:
+    1. Step 1 (Vocabulary): For EACH target word, provide its IPA, Vietnamese definition, and an example sentence.
+    2. Step 1.5 (Vocabulary Review): For EACH target word, create a multiple-choice question (4 options) matching the English word to its Vietnamese definition. Include a short explanation in Vietnamese.
+    3. Step 1.6 (Audio Practice): For EACH target word, create a multiple-choice question (4 options) where the student hears the word and chooses the correct English word.
+    4. Step 2 (Dictation): Create 5-8 short phrases (3-7 words) from the script. If a target word is not in the script, you can create a phrase for it, but prioritize actual script content.
+    5. Step 3 (Gap-fill): Provide the script with "[BLANK]" replacing target vocabulary words that appear in it. If a target word is not in the script, do not create a blank for it.
+    6. Step 4 (Comprehension): Create 3-5 multiple-choice questions about the script with detailed Vietnamese explanations.
     
-    Output in JSON format matching this schema:
+    Important:
+    - If a target word is not in the script, still include it in Step 1, 1.5, and 1.6.
+    - Return ONLY valid JSON.
+    
+    JSON Schema:
     {
       "step1": { "vocabulary": [{ "word": "string", "ipa": "string", "vietnameseDefinition": "string", "example": "string" }] },
       "step1_5": { "questions": [{ "word": "string", "options": ["string", "string", "string", "string"], "answer": 0, "explanation": "string" }] },
@@ -63,7 +67,7 @@ export async function generateScaffolding(script: string, targetVocab: string[])
                   properties: {
                     word: { type: Type.STRING },
                     options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    answer: { type: Type.INTEGER },
+                    answer: { type: Type.NUMBER },
                     explanation: { type: Type.STRING },
                   },
                   required: ["word", "options", "answer", "explanation"],
@@ -82,7 +86,7 @@ export async function generateScaffolding(script: string, targetVocab: string[])
                   properties: {
                     word: { type: Type.STRING },
                     options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    answer: { type: Type.INTEGER },
+                    answer: { type: Type.NUMBER },
                   },
                   required: ["word", "options", "answer"],
                 },
@@ -115,7 +119,7 @@ export async function generateScaffolding(script: string, targetVocab: string[])
                   properties: {
                     question: { type: Type.STRING },
                     options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    answer: { type: Type.INTEGER },
+                    answer: { type: Type.NUMBER },
                     explanation: { type: Type.STRING },
                   },
                   required: ["question", "options", "answer", "explanation"],
@@ -130,7 +134,17 @@ export async function generateScaffolding(script: string, targetVocab: string[])
     },
   });
 
-  return JSON.parse(response.text);
+  const responseText = result.text;
+  if (!responseText) {
+    throw new Error("AI returned an empty response. Please try again with a different script or vocabulary.");
+  }
+  
+  try {
+    return JSON.parse(responseText);
+  } catch (e) {
+    console.error("Failed to parse AI response:", responseText);
+    throw new Error("AI response was not in a valid format. Please try again.");
+  }
 }
 
 export interface ReadingLessonParams {
@@ -230,5 +244,6 @@ Output in JSON format with this structure:
     },
   });
 
-  return JSON.parse(response.text);
+  const responseText = response.text;
+  return JSON.parse(responseText);
 }

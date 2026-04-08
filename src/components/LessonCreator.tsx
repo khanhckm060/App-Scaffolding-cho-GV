@@ -19,6 +19,7 @@ export default function LessonCreator() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  /* 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -33,6 +34,7 @@ export default function LessonCreator() {
       reader.readAsDataURL(file);
     }
   };
+  */
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,8 +43,26 @@ export default function LessonCreator() {
     setLoading(true);
     setError(null);
     
+    if (!auth.currentUser) {
+      setError("You must be logged in to create a lesson.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const vocabList = vocabInput.split(',').map(v => v.trim()).filter(v => v.length > 0);
+      let vocabList = vocabInput.split(',').map(v => v.trim()).filter(v => v.length > 0);
+      
+      // Fallback: if no commas but multiple words, try splitting by space
+      if (vocabList.length === 1 && vocabList[0].split(/\s+/).length > 2) {
+        vocabList = vocabInput.split(/\s+/).filter(v => v.length > 0);
+      }
+
+      if (vocabList.length === 0) {
+        setError("Please provide at least one target vocabulary word.");
+        setLoading(false);
+        return;
+      }
+
       const steps = await generateScaffolding(script, vocabList);
       
       try {
@@ -59,14 +79,24 @@ export default function LessonCreator() {
           teacherId: auth.currentUser.uid,
           createdAt: new Date().toISOString()
         });
-      } catch (err) {
+      } catch (err: any) {
+        console.error("Firestore error:", err);
         handleFirestoreError(err, OperationType.CREATE, 'lessons');
       }
       
       navigate('/teacher?tab=lessons');
-    } catch (err) {
-      console.error(err);
-      setError("Failed to generate lesson. Please check your script and try again.");
+    } catch (err: any) {
+      console.error("Error generating lesson:", err);
+      // If it's a Firestore error that was already handled and re-thrown by handleFirestoreError
+      // it will be a JSON string. We should try to parse it or just show the message.
+      let message = err.message || "Failed to generate lesson. Please check your script and try again.";
+      try {
+        const parsed = JSON.parse(message);
+        if (parsed.error) message = parsed.error;
+      } catch (e) {
+        // Not a JSON string, use as is
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -111,24 +141,16 @@ export default function LessonCreator() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Audio URL (Optional)</label>
+            <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Audio URL (Required)</label>
             <input 
               type="url" 
+              required
               value={audioUrl.startsWith('data:') ? '' : audioUrl}
               onChange={(e) => setAudioUrl(e.target.value)}
               placeholder="https://example.com/audio.mp3"
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Or Upload MP3</label>
-            <input 
-              type="file" 
-              accept="audio/mp3,audio/mpeg"
-              onChange={handleFileUpload}
-              className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
             />
           </div>
         </div>
@@ -158,7 +180,7 @@ export default function LessonCreator() {
 
         <div className="space-y-2">
           <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Target Vocabulary</label>
-          <p className="text-xs text-slate-400">Separate words with commas</p>
+          <p className="text-xs text-slate-400">Separate words with commas or spaces</p>
           <input 
             type="text" 
             required
