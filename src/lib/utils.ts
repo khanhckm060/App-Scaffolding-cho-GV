@@ -9,14 +9,29 @@ export function stringifyError(err: any): string {
   if (!err) return "Unknown error";
   if (typeof err === 'string') return err;
   
-  // Handle Firestore JSON error from handleFirestoreError
-  if (err.message && String(err.message).startsWith('{')) {
+  // Handle Firestore JSON error from handleFirestoreError or Gemini ApiError
+  let rawMessage = err.message ? String(err.message) : "";
+  if (rawMessage.startsWith('ApiError: ')) {
+    rawMessage = rawMessage.replace('ApiError: ', '').trim();
+  }
+
+  if (rawMessage.startsWith('{')) {
     try {
-      const parsed = JSON.parse(err.message);
-      if (parsed && parsed.error) return String(parsed.error);
+      const parsed = JSON.parse(rawMessage);
+      if (parsed && parsed.error) {
+        if (parsed.error.code === 429 || parsed.error.status === "RESOURCE_EXHAUSTED") {
+          return "Bạn đã hết lượt sử dụng AI miễn phí trong hôm nay (Quota Exceeded). Vui lòng thử lại sau hoặc nâng cấp gói API.";
+        }
+        return String(parsed.error.message || parsed.error);
+      }
     } catch (e) {
       // Not JSON or parsing failed
     }
+  }
+
+  // Handle Gemini SDK specific error format if it's not a string but has these properties
+  if (err.status === 429 || (err.error && err.error.code === 429)) {
+    return "Bạn đã hết lượt sử dụng AI miễn phí trong hôm nay (Quota Exceeded). Vui lòng thử lại sau hoặc nâng cấp gói API.";
   }
 
   if (err.message && String(err.message) !== "[object Object]") return String(err.message);
