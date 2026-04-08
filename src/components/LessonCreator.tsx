@@ -4,6 +4,7 @@ import { collection, addDoc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { generateScaffolding } from '../services/gemini';
 import { LessonLevel, LEVEL_DESCRIPTIONS } from '../types';
+import { stringifyError } from '../lib/utils';
 import { Sparkles, Send, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -42,6 +43,12 @@ export default function LessonCreator() {
     
     setLoading(true);
     setError(null);
+
+    if (!process.env.GEMINI_API_KEY) {
+      setError("GEMINI_API_KEY is missing. Please add it in the Settings menu to use AI features.");
+      setLoading(false);
+      return;
+    }
     
     if (!auth.currentUser) {
       setError("You must be logged in to create a lesson.");
@@ -88,52 +95,7 @@ export default function LessonCreator() {
       navigate('/teacher?tab=lessons');
     } catch (err: any) {
       console.error("Error generating lesson:", err);
-      
-      let message = "Failed to generate lesson. Please check your script and try again.";
-      
-      if (err) {
-        if (typeof err === 'string') {
-          message = err;
-        } else {
-          // Try to extract the most useful message
-          const candidateMessage = err.message || err.error || err.details || err.statusText;
-          
-          if (candidateMessage && String(candidateMessage) !== "[object Object]") {
-            message = String(candidateMessage);
-            
-            // Try to parse JSON if it's our custom error from handleFirestoreError
-            try {
-              const parsed = JSON.parse(message);
-              if (parsed && typeof parsed === 'object' && parsed.error) {
-                message = String(parsed.error);
-              }
-            } catch (e) {
-              // Not JSON
-            }
-          } else {
-            // If no message or message is useless, stringify the whole thing
-            try {
-              if (err instanceof Error) {
-                message = err.stack || err.message || String(err);
-              } else {
-                message = JSON.stringify(err, null, 2);
-                if (message === "{}" || message === "[]") {
-                  message = String(err);
-                }
-              }
-            } catch (e) {
-              message = String(err);
-            }
-          }
-        }
-      }
-
-      // Final safety check: if message is still "[object Object]"
-      if (message === "[object Object]") {
-        message = "An unexpected error occurred (object type). Details: " + (err.stack || String(err));
-      }
-      
-      setError(message);
+      setError(stringifyError(err));
     } finally {
       setLoading(false);
     }
