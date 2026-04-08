@@ -41,24 +41,6 @@ export async function downloadWorksheet(lesson: Lesson) {
             spacing: { after: 600 },
           }),
 
-          // Content (Passage or Script)
-          new Paragraph({
-            text: (lesson.type === 'reading' || lesson.passage) ? 'READING PASSAGE' : 'LISTENING SCRIPT',
-            heading: HeadingLevel.HEADING_2,
-            alignment: AlignmentType.LEFT,
-            spacing: { before: 400, after: 200 },
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: lesson.passage || lesson.script || '',
-                size: 24, // 12pt
-              }),
-            ],
-            alignment: AlignmentType.JUSTIFIED,
-            spacing: { after: 600, line: 360 }, // 1.5 line spacing
-          }),
-
           // Vocabulary
           new Paragraph({
             text: 'VOCABULARY LIST',
@@ -77,6 +59,44 @@ export async function downloadWorksheet(lesson: Lesson) {
             })
           ),
           new Paragraph({ text: '', spacing: { after: 400 } }),
+
+          // Step 4: Phrase Dictation
+          ...(lesson.steps?.step2?.phrases ? [
+            new Paragraph({
+              text: 'PHRASE DICTATION',
+              heading: HeadingLevel.HEADING_2,
+              spacing: { before: 600, after: 200 },
+            }),
+            ...lesson.steps.step2.phrases.map((phrase, i) => 
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `${i + 1}. `, bold: true, size: 24 }),
+                  new TextRun({ text: "__________________________________________________________________", size: 24 }),
+                ],
+                spacing: { before: 200, after: 100 },
+                indent: { left: 360 },
+              })
+            )
+          ] : []),
+
+          // Step 5: Gap-fill Exercise
+          ...(lesson.steps?.step3?.gapFillText ? [
+            new Paragraph({
+              text: 'GAP-FILL EXERCISE',
+              heading: HeadingLevel.HEADING_2,
+              spacing: { before: 600, after: 200 },
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: lesson.steps.step3.gapFillText.replace(/\[(\d+|BLANK)\]/gi, ' __________________________ '),
+                  size: 24,
+                }),
+              ],
+              alignment: AlignmentType.JUSTIFIED,
+              spacing: { after: 400, line: 360 },
+            })
+          ] : []),
 
           // Questions
           new Paragraph({
@@ -128,6 +148,63 @@ export async function downloadWorksheet(lesson: Lesson) {
             heading: HeadingLevel.HEADING_1,
             alignment: AlignmentType.CENTER,
             spacing: { after: 600 },
+          }),
+          // Script/Passage in Answer Key
+          new Paragraph({
+            text: (lesson.type === 'reading' || lesson.passage) ? 'READING PASSAGE' : 'LISTENING SCRIPT',
+            heading: HeadingLevel.HEADING_2,
+            alignment: AlignmentType.LEFT,
+            spacing: { before: 400, after: 200 },
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: lesson.passage || lesson.script || '',
+                size: 22,
+              }),
+            ],
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { after: 400, line: 300 },
+          }),
+          // Step 4: Phrase Dictation Answers
+          ...(lesson.steps?.step2?.phrases ? [
+            new Paragraph({
+              text: 'PHRASE DICTATION ANSWERS',
+              heading: HeadingLevel.HEADING_2,
+              spacing: { before: 400, after: 200 },
+            }),
+            ...lesson.steps.step2.phrases.map((phrase, i) => 
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `${i + 1}. `, bold: true, size: 22 }),
+                  new TextRun({ text: phrase, size: 22, color: '2E7D32', bold: true }),
+                ],
+                indent: { left: 360 },
+                spacing: { after: 100 },
+              })
+            )
+          ] : []),
+
+          // Step 5: Gap-fill Answers
+          ...(lesson.steps?.step3?.blanks ? [
+            new Paragraph({
+              text: 'GAP-FILL ANSWERS',
+              heading: HeadingLevel.HEADING_2,
+              spacing: { before: 400, after: 200 },
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: lesson.steps.step3.blanks.map((b, i) => `(${i+1}) ${b}`).join('   '), size: 22, color: '2E7D32', bold: true }),
+              ],
+              indent: { left: 360 },
+              spacing: { after: 400 },
+            })
+          ] : []),
+
+          new Paragraph({
+            text: 'PRACTICE QUESTIONS ANSWERS',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 400, after: 200 },
           }),
           ...(lesson.readingQuestions || lesson.steps?.step4?.questions || []).map((q, i) => {
             let answerText = String(q.answer ?? '');

@@ -269,21 +269,20 @@ export default function StudentLesson() {
       
       yPos = (doc as any).lastAutoTable.finalY + 15;
 
-      // Step 4: Phrase Dictation (Step 2 in code)
+      // Step 4: Phrase Dictation
       if (yPos > 250) { doc.addPage(); yPos = 20; }
       doc.setFontSize(14);
       doc.text("4. Phrase Dictation", 14, yPos);
       yPos += 10;
       
-      const dictationData = lesson.steps.step2.phrases.map((phrase, i) => [
+      const dictationData = lesson.steps.step2.phrases.map((_, i) => [
         i + 1,
-        "....................................................................................................",
-        phrase
+        "...................................................................................................."
       ]);
 
       autoTable(doc, {
         startY: yPos,
-        head: [['#', 'Your Answer', 'Correct Phrase']],
+        head: [['#', 'Your Answer']],
         body: dictationData,
         theme: 'grid',
         headStyles: { fillColor: [79, 70, 229] },
@@ -291,58 +290,97 @@ export default function StudentLesson() {
 
       yPos = (doc as any).lastAutoTable.finalY + 15;
 
-      // Step 5: Gap-fill Exercise (Step 3 in code)
+      // Step 5: Gap-fill Exercise
       if (yPos > 250) { doc.addPage(); yPos = 20; }
       doc.setFontSize(14);
       doc.text("5. Gap-fill Exercise", 14, yPos);
       yPos += 10;
       
       doc.setFontSize(10);
-      const gapFillText = (lesson.steps.step3.gapFillText || '').replace(/\[\d+\]/g, '[BLANK]');
+      const gapFillText = (lesson.steps.step3.gapFillText || '').replace(/\[(\d+|BLANK)\]/gi, ' __________________________ ');
       const splitGapFill = doc.splitTextToSize(gapFillText, 180);
       doc.text(splitGapFill, 14, yPos);
-      yPos += splitGapFill.length * 5 + 10;
+      yPos += splitGapFill.length * 5 + 15;
 
-      if (yPos > 250) { doc.addPage(); yPos = 20; }
-      doc.setFontSize(12);
-      doc.text("Answers for Gap-fill:", 14, yPos);
-      yPos += 8;
-      doc.setFontSize(10);
-      doc.text(lesson.steps.step3.blanks.join(", "), 14, yPos);
-      yPos += 15;
-
-      // Step 6: Comprehension (Step 4 in code)
+      // Step 6: Comprehension
       if (yPos > 250) { doc.addPage(); yPos = 20; }
       doc.setFontSize(14);
       doc.text("6. Comprehension Questions", 14, yPos);
       yPos += 10;
 
-      const mcqData = lesson.steps.step4.questions.map((q, i) => [
+      const mcqData = lesson.steps.step4.questions.map((q, i) => {
+        const options = q.options.map((opt, optIdx) => `${String.fromCharCode(65 + optIdx)}. ${opt}`).join('\n');
+        return [i + 1, `${q.question}\n\n${options}`];
+      });
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['#', 'Question & Options']],
+        body: mcqData,
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229] },
+        styles: { cellPadding: 5 }
+      });
+
+      // --- ANSWER KEY PAGE ---
+      doc.addPage();
+      yPos = 20;
+      doc.setFontSize(18);
+      doc.setTextColor(79, 70, 229);
+      doc.text("ANSWER KEY", 105, yPos, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+      yPos += 15;
+
+      // Script/Passage in Answer Key
+      doc.setFontSize(14);
+      doc.text(lesson.type === 'reading' ? "Reading Passage" : "Listening Script", 14, yPos);
+      yPos += 8;
+      doc.setFontSize(10);
+      const splitScript = doc.splitTextToSize(lesson.passage || lesson.script || '', 180);
+      doc.text(splitScript, 14, yPos);
+      yPos += splitScript.length * 5 + 15;
+
+      // Step 4 Answers
+      doc.setFontSize(14);
+      doc.text("4. Phrase Dictation Answers", 14, yPos);
+      yPos += 8;
+      doc.setFontSize(10);
+      lesson.steps.step2.phrases.forEach((phrase, i) => {
+        doc.text(`${i + 1}. ${phrase}`, 14, yPos);
+        yPos += 6;
+      });
+      yPos += 10;
+
+      // Step 5 Answers
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(14);
+      doc.text("5. Gap-fill Answers", 14, yPos);
+      yPos += 8;
+      doc.setFontSize(10);
+      doc.text(lesson.steps.step3.blanks.map((b, i) => `(${i+1}) ${b}`).join("   "), 14, yPos);
+      yPos += 15;
+
+      // Step 6 Answers
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(14);
+      doc.text("6. Comprehension Answers", 14, yPos);
+      yPos += 10;
+
+      const mcqAnswersData = lesson.steps.step4.questions.map((q, i) => [
         i + 1,
-        q.question,
-        q.options[q.answer],
+        `${String.fromCharCode(65 + q.answer)}. ${q.options[q.answer]}`,
         q.explanation
       ]);
 
       autoTable(doc, {
         startY: yPos,
-        head: [['#', 'Question', 'Correct Answer', 'Explanation']],
-        body: mcqData,
+        head: [['#', 'Correct Answer', 'Explanation']],
+        body: mcqAnswersData,
         theme: 'grid',
-        headStyles: { fillColor: [79, 70, 229] },
+        headStyles: { fillColor: [34, 197, 94] }, // Green for answers
       });
 
     } else {
-      if (lesson.passage) {
-        doc.setFontSize(14);
-        doc.text("Reading Passage", 14, yPos);
-        yPos += 10;
-        doc.setFontSize(10);
-        const splitPassage = doc.splitTextToSize(lesson.passage, 180);
-        doc.text(splitPassage, 14, yPos);
-        yPos += splitPassage.length * 5 + 10;
-      }
-
       const tableData: any[] = [];
       if (lesson.sections) {
         lesson.sections.forEach((section, sIdx) => {
