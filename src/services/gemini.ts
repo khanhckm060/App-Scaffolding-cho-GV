@@ -1,7 +1,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ScaffoldingSteps, VocabularyItem } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+if (!process.env.GEMINI_API_KEY) {
+  console.warn("GEMINI_API_KEY is not defined in process.env");
+}
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 export async function generateScaffolding(script: string, targetVocab: string[]): Promise<ScaffoldingSteps> {
   const result = await ai.models.generateContent({
