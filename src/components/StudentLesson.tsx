@@ -867,7 +867,9 @@ export default function StudentLesson() {
                         {error && (
                           <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm font-medium flex items-center space-x-2">
                             <AlertCircle className="w-4 h-4" />
-                            <span>{String(error)}</span>
+                            <span>
+                              {typeof error === 'object' ? JSON.stringify(error) : String(error)}
+                            </span>
                           </div>
                         )}
                         <button
@@ -948,7 +950,9 @@ export default function StudentLesson() {
                         {error && (
                           <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-[10px] font-medium flex items-center space-x-2">
                             <AlertCircle className="w-3 h-3" />
-                            <span>{String(error)}</span>
+                            <span>
+                              {typeof error === 'object' ? JSON.stringify(error) : String(error)}
+                            </span>
                           </div>
                         )}
                         <button

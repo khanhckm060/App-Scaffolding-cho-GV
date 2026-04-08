@@ -90,31 +90,43 @@ export default function LessonCreator() {
       
       let message = "Failed to generate lesson. Please check your script and try again.";
       
-      if (err && typeof err === 'object') {
-        // Handle standard Error objects or objects with message property
-        if (err.message) {
-          const rawMessage = typeof err.message === 'object' ? JSON.stringify(err.message) : String(err.message);
-          message = rawMessage;
-          
-          // Try to parse JSON if it's our custom error from handleFirestoreError
-          try {
-            const parsed = JSON.parse(rawMessage);
-            if (parsed && typeof parsed === 'object' && parsed.error) {
-              message = String(parsed.error);
+      if (err) {
+        if (typeof err === 'string') {
+          message = err;
+        } else if (err.message) {
+          // If message is the string "[object Object]", it's useless
+          if (String(err.message) === "[object Object]") {
+            try {
+              message = JSON.stringify(err);
+            } catch (e) {
+              message = "An unrenderable error occurred.";
             }
-          } catch (e) {
-            // Not JSON, keep rawMessage
+          } else {
+            const rawMessage = typeof err.message === 'object' ? JSON.stringify(err.message) : String(err.message);
+            message = rawMessage;
+            
+            // Try to parse JSON if it's our custom error from handleFirestoreError
+            try {
+              const parsed = JSON.parse(rawMessage);
+              if (parsed && typeof parsed === 'object' && parsed.error) {
+                message = String(parsed.error);
+              }
+            } catch (e) {
+              // Not JSON
+            }
           }
         } else {
-          // Object without message, stringify the whole thing
           try {
             message = JSON.stringify(err);
           } catch (e) {
-            message = "An unknown object error occurred.";
+            message = "An unknown error occurred.";
           }
         }
-      } else if (err) {
-        message = String(err);
+      }
+
+      // Final safety check: if message is still "[object Object]"
+      if (message === "[object Object]") {
+        message = "An unexpected error occurred (object type).";
       }
       
       setError(message);
@@ -227,7 +239,9 @@ export default function LessonCreator() {
         {error && (
           <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-4 rounded-xl border border-red-100">
             <AlertCircle className="w-5 h-5" />
-            <span className="text-sm font-medium">{error}</span>
+            <span className="text-sm font-medium">
+              {typeof error === 'object' ? JSON.stringify(error) : String(error)}
+            </span>
           </div>
         )}
 
