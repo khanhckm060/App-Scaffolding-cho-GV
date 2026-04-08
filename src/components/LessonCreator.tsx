@@ -96,7 +96,7 @@ export default function LessonCreator() {
       } catch (e) {
         // Not a JSON string, use as is
       }
-      setError(message);
+      setError(String(message));
     } finally {
       setLoading(false);
     }

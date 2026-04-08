@@ -38,17 +38,29 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   render() {
     if (this.state.hasError) {
-      let errorMessage = "Something went wrong.";
+      let message = "Something went wrong.";
       let details = null;
 
-      try {
-        const parsed = JSON.parse(this.state.error?.message || "");
-        if (parsed.error) {
-          errorMessage = parsed.error;
-          details = parsed;
+      const error = this.state.error;
+      if (error) {
+        if (typeof error === 'string') {
+          message = error;
+        } else if (error instanceof Error) {
+          message = error.message;
+          try {
+            const parsed = JSON.parse(error.message);
+            if (parsed.error) {
+              message = parsed.error;
+              details = parsed;
+            }
+          } catch (e) {
+            // Not JSON
+          }
+        } else if (typeof error === 'object') {
+          // Handle plain objects (like Firebase errors if they aren't real Error instances)
+          message = (error as any).message || JSON.stringify(error);
+          details = error;
         }
-      } catch (e) {
-        errorMessage = this.state.error?.message || errorMessage;
       }
 
       return (
@@ -58,7 +70,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
               <X className="w-8 h-8 text-red-600" />
             </div>
             <h2 className="text-2xl font-bold text-slate-900 mb-4">Oops! An error occurred</h2>
-            <p className="text-slate-600 mb-6">{errorMessage}</p>
+            <p className="text-slate-600 mb-6">{String(message)}</p>
             {details && (
               <div className="text-left bg-slate-50 p-4 rounded-xl mb-6 overflow-auto max-h-40">
                 <pre className="text-[10px] text-slate-500">{JSON.stringify(details, null, 2)}</pre>

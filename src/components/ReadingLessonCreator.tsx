@@ -320,7 +320,17 @@ export default function ReadingLessonCreator() {
       navigate('/teacher?tab=lessons');
     } catch (err: any) {
       console.error("Error generating lesson:", err);
-      setError("Có lỗi xảy ra khi tạo bài tập. Vui lòng thử lại.");
+      let message = "Có lỗi xảy ra khi tạo bài tập. Vui lòng thử lại.";
+      if (err.message) {
+        try {
+          const parsed = JSON.parse(err.message);
+          if (parsed.error) message = parsed.error;
+          else message = err.message;
+        } catch (e) {
+          message = err.message;
+        }
+      }
+      setError(String(message));
     } finally {
       setLoading(false);
     }

@@ -231,53 +231,142 @@ export default function StudentLesson() {
 
     let yPos = 50;
 
-    if (lesson.passage) {
+    if (lesson.type === 'listening' && lesson.steps) {
+      // Step 1: Vocabulary
       doc.setFontSize(14);
-      doc.text("Reading Passage", 14, yPos);
+      doc.text("1. Vocabulary", 14, yPos);
       yPos += 10;
-      doc.setFontSize(10);
-      const splitPassage = doc.splitTextToSize(lesson.passage, 180);
-      doc.text(splitPassage, 14, yPos);
-      yPos += splitPassage.length * 5 + 10;
-    }
+      
+      const vocabData = lesson.steps.step1.vocabulary.map((v, i) => [
+        i + 1,
+        v.word,
+        v.ipa,
+        v.vietnameseDefinition,
+        v.example
+      ]);
 
-    const tableData: any[] = [];
-    if (lesson.sections) {
-      lesson.sections.forEach((section, sIdx) => {
-        tableData.push([{ content: section.title, colSpan: 4, styles: { fillColor: [240, 240, 240], fontStyle: 'bold' } }]);
-        section.questions.forEach((q, qIdx) => {
+      autoTable(doc, {
+        startY: yPos,
+        head: [['#', 'Word', 'IPA', 'Definition', 'Example']],
+        body: vocabData,
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229] },
+      });
+      
+      yPos = (doc as any).lastAutoTable.finalY + 15;
+
+      // Step 4: Phrase Dictation (Step 2 in code)
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(14);
+      doc.text("4. Phrase Dictation", 14, yPos);
+      yPos += 10;
+      
+      const dictationData = lesson.steps.step2.phrases.map((phrase, i) => [
+        i + 1,
+        "....................................................................................................",
+        phrase
+      ]);
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['#', 'Your Answer', 'Correct Phrase']],
+        body: dictationData,
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229] },
+      });
+
+      yPos = (doc as any).lastAutoTable.finalY + 15;
+
+      // Step 5: Gap-fill Exercise (Step 3 in code)
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(14);
+      doc.text("5. Gap-fill Exercise", 14, yPos);
+      yPos += 10;
+      
+      doc.setFontSize(10);
+      const gapFillText = (lesson.steps.step3.gapFillText || '').replace(/\[\d+\]/g, '[BLANK]');
+      const splitGapFill = doc.splitTextToSize(gapFillText, 180);
+      doc.text(splitGapFill, 14, yPos);
+      yPos += splitGapFill.length * 5 + 10;
+
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(12);
+      doc.text("Answers for Gap-fill:", 14, yPos);
+      yPos += 8;
+      doc.setFontSize(10);
+      doc.text(lesson.steps.step3.blanks.join(", "), 14, yPos);
+      yPos += 15;
+
+      // Step 6: Comprehension (Step 4 in code)
+      if (yPos > 250) { doc.addPage(); yPos = 20; }
+      doc.setFontSize(14);
+      doc.text("6. Comprehension Questions", 14, yPos);
+      yPos += 10;
+
+      const mcqData = lesson.steps.step4.questions.map((q, i) => [
+        i + 1,
+        q.question,
+        q.options[q.answer],
+        q.explanation
+      ]);
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['#', 'Question', 'Correct Answer', 'Explanation']],
+        body: mcqData,
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229] },
+      });
+
+    } else {
+      if (lesson.passage) {
+        doc.setFontSize(14);
+        doc.text("Reading Passage", 14, yPos);
+        yPos += 10;
+        doc.setFontSize(10);
+        const splitPassage = doc.splitTextToSize(lesson.passage, 180);
+        doc.text(splitPassage, 14, yPos);
+        yPos += splitPassage.length * 5 + 10;
+      }
+
+      const tableData: any[] = [];
+      if (lesson.sections) {
+        lesson.sections.forEach((section, sIdx) => {
+          tableData.push([{ content: section.title, colSpan: 4, styles: { fillColor: [240, 240, 240], fontStyle: 'bold' } }]);
+          section.questions.forEach((q, qIdx) => {
+            tableData.push([
+              qIdx + 1,
+              q.question,
+              q.type === 'multipleChoice' ? q.options?.[Number(q.answer)] : q.answer,
+              q.explanation
+            ]);
+          });
+        });
+      } else {
+        (lesson.readingQuestions || []).forEach((q, i) => {
           tableData.push([
-            qIdx + 1,
+            i + 1,
             q.question,
             q.type === 'multipleChoice' ? q.options?.[Number(q.answer)] : q.answer,
             q.explanation
           ]);
         });
-      });
-    } else {
-      (lesson.readingQuestions || []).forEach((q, i) => {
-        tableData.push([
-          i + 1,
-          q.question,
-          q.type === 'multipleChoice' ? q.options?.[Number(q.answer)] : q.answer,
-          q.explanation
-        ]);
+      }
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['#', 'Question', 'Correct Answer', 'Explanation']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229] },
+        columnStyles: {
+          0: { cellWidth: 10 },
+          1: { cellWidth: 60 },
+          2: { cellWidth: 40 },
+          3: { cellWidth: 70 }
+        }
       });
     }
-
-    autoTable(doc, {
-      startY: yPos,
-      head: [['#', 'Question', 'Correct Answer', 'Explanation']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [79, 70, 229] },
-      columnStyles: {
-        0: { cellWidth: 10 },
-        1: { cellWidth: 60 },
-        2: { cellWidth: 40 },
-        3: { cellWidth: 70 }
-      }
-    });
 
     doc.save(`${lesson.title}_Worksheet.pdf`);
   };
@@ -778,7 +867,7 @@ export default function StudentLesson() {
                         {error && (
                           <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm font-medium flex items-center space-x-2">
                             <AlertCircle className="w-4 h-4" />
-                            <span>{error}</span>
+                            <span>{String(error)}</span>
                           </div>
                         )}
                         <button
@@ -859,7 +948,7 @@ export default function StudentLesson() {
                         {error && (
                           <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-[10px] font-medium flex items-center space-x-2">
                             <AlertCircle className="w-3 h-3" />
-                            <span>{error}</span>
+                            <span>{String(error)}</span>
                           </div>
                         )}
                         <button
