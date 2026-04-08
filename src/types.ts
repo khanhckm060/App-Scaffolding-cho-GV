@@ -67,13 +67,21 @@ export interface Lesson {
   audioEnd?: number;
   vocabulary: VocabularyItem[];
   steps?: ScaffoldingSteps; // For listening
-  readingQuestions?: ReadingQuestion[]; // For reading
+  readingQuestions?: ReadingQuestion[]; // For reading (legacy or flat)
+  sections?: ExamSection[]; // For structured exams
   teacherId: string;
   createdAt: string;
+  passingPercentage?: number;
+}
+
+export interface ExamSection {
+  title: string;
+  description?: string;
+  questions: ReadingQuestion[];
 }
 
 export interface ReadingQuestion {
-  type: string;
+  type: string; // multipleChoice, trueFalse, gapFill, matching, openEnded
   question: string;
   options?: string[];
   answer: string | number;

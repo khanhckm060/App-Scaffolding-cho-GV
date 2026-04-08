@@ -4,9 +4,13 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { Lesson, ReadingQuestion, LessonLevel, LEVEL_DESCRIPTIONS } from '../types';
 import { GoogleGenAI, Type } from "@google/genai";
-import { BookOpen, Sparkles, AlertCircle, ChevronLeft, Send, CheckCircle2, Loader2, Plus, Trash2, FileText, Link as LinkIcon, Upload, Globe } from 'lucide-react';
+import { BookOpen, Sparkles, AlertCircle, ChevronLeft, Send, CheckCircle2, Loader2, Plus, Trash2, FileText, Link as LinkIcon, Upload, Globe, FileUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import mammoth from 'mammoth';
+import * as pdfjs from 'pdfjs-dist';
+
+// Configure pdfjs worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
@@ -17,12 +21,13 @@ export default function ReadingLessonCreator() {
   
   const [topic, setTopic] = useState('');
   const [level, setLevel] = useState<LessonLevel>('A2');
-  const [sourceType, setSourceType] = useState<'ai' | 'file' | 'link' | 'manual'>('ai');
+  const [sourceType, setSourceType] = useState<'ai' | 'file' | 'link' | 'manual' | 'test-upload'>('ai');
   const [manualPassage, setManualPassage] = useState('');
   const [spreadsheetUrl, setSpreadsheetUrl] = useState('');
   const [fileContent, setFileContent] = useState('');
   const [fileName, setFileName] = useState('');
   const [numPassages, setNumPassages] = useState(1);
+  const [passingScore, setPassingScore] = useState(8.0);
   const [questionTypes, setQuestionTypes] = useState({
     matching: true,
     trueFalse: true,
@@ -35,21 +40,37 @@ export default function ReadingLessonCreator() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.docx')) {
-      setError('Vui lòng tải lên file Word (.docx)');
+    const isDocx = file.name.endsWith('.docx');
+    const isPdf = file.name.endsWith('.pdf');
+
+    if (!isDocx && !isPdf) {
+      setError('Vui lòng tải lên file Word (.docx) hoặc PDF (.pdf)');
       return;
     }
 
     setLoading(true);
     setFileName(file.name);
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const result = await mammoth.extractRawText({ arrayBuffer });
-      setFileContent(result.value);
+      if (isDocx) {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        setFileContent(result.value);
+      } else {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map((item: any) => item.str).join(' ');
+          fullText += pageText + '\n';
+        }
+        setFileContent(fullText);
+      }
       setError(null);
     } catch (err) {
-      console.error('Error parsing docx:', err);
-      setError('Không thể đọc file Word này. Vui lòng thử lại hoặc dán văn bản trực tiếp.');
+      console.error('Error parsing file:', err);
+      setError('Không thể đọc file này. Vui lòng thử lại hoặc dán văn bản trực tiếp.');
     } finally {
       setLoading(false);
     }
@@ -65,7 +86,11 @@ export default function ReadingLessonCreator() {
       return;
     }
     if (sourceType === 'file' && !fileContent) {
-      setError('Vui lòng tải lên file Word');
+      setError('Vui lòng tải lên file Word hoặc PDF');
+      return;
+    }
+    if (sourceType === 'test-upload' && !fileContent) {
+      setError('Vui lòng tải lên file đề thi (Word/PDF)');
       return;
     }
     if (sourceType === 'link' && !spreadsheetUrl) {
@@ -94,6 +119,37 @@ export default function ReadingLessonCreator() {
            Generate exactly ${numQuestions} questions for EACH of the ${numPassages} passages.
            Distribute the selected question types randomly and evenly across the passages.`;
         tools = [{ urlContext: {} }];
+      } else if (sourceType === 'test-upload') {
+        prompt = `You are an expert English exam parser. I will provide you with the text of an English exam (Word or PDF content).
+           Your task is to extract the reading passage(s) and ALL the questions exactly as they are in the original text.
+           DO NOT change the question text, options, or format. 
+           
+           Organize the questions into sections (I, II, III, IV, V, VI, VII, etc.) as they appear in the exam.
+           Each section should have a title (e.g., "SECTION I: LISTENING", "SECTION II: READING", "SECTION III: GRAMMAR").
+           If the original text has answers or explanations, extract them. If not, generate accurate answers and detailed explanations for each question.
+           
+           Text: ${fileContent}
+           
+           Return the result in JSON format with the following structure:
+           {
+             "title": "Title of the exam",
+             "sections": [
+               {
+                 "title": "SECTION I: ...",
+                 "description": "Optional instructions for this section",
+                 "questions": [
+                   {
+                     "type": "multipleChoice | trueFalse | gapFill | matching | openEnded",
+                     "question": "The question text",
+                     "options": ["Option A", "Option B", "Option C", "Option D"], // Only for multipleChoice
+                     "answer": "The correct answer (string for matching/gapFill/openEnded, index 0-3 for multipleChoice, 'True'/'False'/'Not Given' for trueFalse)",
+                     "explanation": "Detailed explanation of why this is the correct answer"
+                   }
+                 ]
+               }
+             ],
+             "vocabulary": [{"word": "string", "ipa": "string", "vietnameseDefinition": "string", "example": "string"}]
+           }`;
       } else {
         const content = sourceType === 'file' ? fileContent : manualPassage;
         prompt = `Generate comprehension questions for the following English text at level ${level}.
@@ -131,7 +187,51 @@ export default function ReadingLessonCreator() {
         config: {
           tools: tools.length > 0 ? tools : undefined,
           responseMimeType: "application/json",
-          responseSchema: {
+          responseSchema: sourceType === 'test-upload' ? {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              sections: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                    questions: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          type: { type: Type.STRING },
+                          question: { type: Type.STRING },
+                          options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                          answer: { type: Type.STRING },
+                          explanation: { type: Type.STRING }
+                        },
+                        required: ["type", "question", "answer", "explanation"]
+                      }
+                    }
+                  },
+                  required: ["title", "questions"]
+                }
+              },
+              vocabulary: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    word: { type: Type.STRING },
+                    ipa: { type: Type.STRING },
+                    vietnameseDefinition: { type: Type.STRING },
+                    example: { type: Type.STRING }
+                  },
+                  required: ["word", "ipa", "vietnameseDefinition", "example"]
+                }
+              }
+            },
+            required: ["title", "sections"]
+          } : {
             type: Type.OBJECT,
             properties: {
               lessons: {
@@ -180,22 +280,41 @@ export default function ReadingLessonCreator() {
 
       const data = JSON.parse(response.text);
       
-      for (const lessonData of data.lessons) {
+      if (sourceType === 'test-upload') {
         const newLesson: Omit<Lesson, 'id'> = {
           type: 'reading',
-          title: lessonData.title,
+          title: data.title,
           level: level,
-          passage: lessonData.passage,
-          vocabulary: lessonData.vocabulary,
-          readingQuestions: lessonData.questions,
+          vocabulary: data.vocabulary || [],
+          sections: data.sections,
           teacherId: auth.currentUser?.uid || '',
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          passingPercentage: passingScore
         };
 
         try {
           await addDoc(collection(db, 'lessons'), newLesson);
         } catch (err) {
           handleFirestoreError(err, OperationType.CREATE, 'lessons');
+        }
+      } else {
+        for (const lessonData of data.lessons) {
+          const newLesson: Omit<Lesson, 'id'> = {
+            type: 'reading',
+            title: lessonData.title,
+            level: level,
+            passage: lessonData.passage,
+            vocabulary: lessonData.vocabulary,
+            readingQuestions: lessonData.questions,
+            teacherId: auth.currentUser?.uid || '',
+            createdAt: new Date().toISOString()
+          };
+
+          try {
+            await addDoc(collection(db, 'lessons'), newLesson);
+          } catch (err) {
+            handleFirestoreError(err, OperationType.CREATE, 'lessons');
+          }
         }
       }
       navigate('/teacher?tab=lessons');
@@ -251,6 +370,17 @@ export default function ReadingLessonCreator() {
                   Nguồn bài đọc
                 </label>
                 <div className="grid grid-cols-2 gap-3 mb-4">
+                  <button
+                    onClick={() => setSourceType('test-upload')}
+                    className={`py-3 px-4 rounded-xl border-2 font-bold transition-all flex items-center justify-center space-x-2 ${
+                      sourceType === 'test-upload' 
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-600' 
+                        : 'border-slate-100 text-slate-400 hover:border-slate-200'
+                    }`}
+                  >
+                    <FileUp className="w-4 h-4" />
+                    <span>Upload Đề thi</span>
+                  </button>
                   <button
                     onClick={() => setSourceType('ai')}
                     className={`py-3 px-4 rounded-xl border-2 font-bold transition-all flex items-center justify-center space-x-2 ${
@@ -313,15 +443,15 @@ export default function ReadingLessonCreator() {
                 </motion.div>
               )}
 
-              {sourceType === 'file' && (
+              {(sourceType === 'file' || sourceType === 'test-upload') && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                   <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">
-                    Tải lên file Word (.docx)
+                    Tải lên file {sourceType === 'test-upload' ? 'Đề thi' : 'Word/PDF'} (.docx, .pdf)
                   </label>
                   <div className="relative group">
                     <input 
                       type="file"
-                      accept=".docx"
+                      accept=".docx,.pdf"
                       onChange={handleFileUpload}
                       className="hidden"
                       id="word-upload"
@@ -333,8 +463,8 @@ export default function ReadingLessonCreator() {
                       <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
                         <Upload className="w-8 h-8 text-indigo-600 group-hover:text-white" />
                       </div>
-                      <span className="font-bold text-slate-700">{fileName || 'Chọn file .docx từ máy tính'}</span>
-                      <span className="text-xs text-slate-400 mt-2">Hỗ trợ định dạng Microsoft Word (.docx)</span>
+                      <span className="font-bold text-slate-700">{fileName || 'Chọn file .docx hoặc .pdf'}</span>
+                      <span className="text-xs text-slate-400 mt-2">Hỗ trợ định dạng Word (.docx) và PDF (.pdf)</span>
                     </label>
                   </div>
                   {fileContent && (
@@ -343,6 +473,26 @@ export default function ReadingLessonCreator() {
                       <span className="text-sm text-emerald-700 font-medium">Đã đọc nội dung file thành công</span>
                     </div>
                   )}
+                </motion.div>
+              )}
+
+              {sourceType === 'test-upload' && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                  <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">
+                    Điểm đạt yêu cầu (0 - 10): {passingScore.toFixed(1)}
+                  </label>
+                  <input 
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value={passingScore}
+                    onChange={(e) => setPassingScore(parseFloat(e.target.value))}
+                    className="w-full accent-indigo-600"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-2 italic">
+                    Học viên cần đạt mức điểm này để hoàn thành bài tập. Nếu thấp hơn sẽ phải làm lại.
+                  </p>
                 </motion.div>
               )}
 
@@ -381,91 +531,97 @@ export default function ReadingLessonCreator() {
                 </motion.div>
               )}
 
-              <div>
-                <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">
-                  Trình độ (CEFR)
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['A1', 'A2', 'B1', 'B2', 'C1'] as LessonLevel[]).map((l) => (
-                    <button
-                      key={l}
-                      onClick={() => setLevel(l)}
-                      className={`py-2 rounded-lg border font-bold text-sm transition-all ${
-                        level === l 
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' 
-                          : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      {l}
-                    </button>
-                  ))}
+              {sourceType !== 'test-upload' && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">
+                    Trình độ (CEFR)
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['A1', 'A2', 'B1', 'B2', 'C1'] as LessonLevel[]).map((l) => (
+                      <button
+                        key={l}
+                        onClick={() => setLevel(l)}
+                        className={`py-2 rounded-lg border font-bold text-sm transition-all ${
+                          level === l 
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' 
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2 italic">
+                    {LEVEL_DESCRIPTIONS[level]}
+                  </p>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-2 italic">
-                  {LEVEL_DESCRIPTIONS[level]}
-                </p>
-              </div>
+              )}
             </div>
 
             <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">
-                  Loại câu hỏi
-                </label>
-                <div className="space-y-2">
-                  {[
-                    { id: 'matching', label: 'Nối từ/ý (Matching)' },
-                    { id: 'trueFalse', label: 'Đúng/Sai/Không đề cập (T/F/NG)' },
-                    { id: 'multipleChoice', label: 'Trắc nghiệm (MCQ)' },
-                    { id: 'gapFill', label: 'Điền từ (Gap Fill)' },
-                  ].map((type) => (
-                    <label key={type.id} className="flex items-center p-3 rounded-xl border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
-                      <input 
-                        type="checkbox"
-                        checked={questionTypes[type.id as keyof typeof questionTypes]}
-                        onChange={(e) => setQuestionTypes({...questionTypes, [type.id]: e.target.checked})}
-                        className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500 mr-3"
-                      />
-                      <span className="font-medium text-slate-700">{type.label}</span>
+              {sourceType !== 'test-upload' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">
+                      Loại câu hỏi
                     </label>
-                  ))}
-                </div>
-              </div>
+                    <div className="space-y-2">
+                      {[
+                        { id: 'matching', label: 'Nối từ/ý (Matching)' },
+                        { id: 'trueFalse', label: 'Đúng/Sai/Không đề cập (T/F/NG)' },
+                        { id: 'multipleChoice', label: 'Trắc nghiệm (MCQ)' },
+                        { id: 'gapFill', label: 'Điền từ (Gap Fill)' },
+                      ].map((type) => (
+                        <label key={type.id} className="flex items-center p-3 rounded-xl border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
+                          <input 
+                            type="checkbox"
+                            checked={questionTypes[type.id as keyof typeof questionTypes]}
+                            onChange={(e) => setQuestionTypes({...questionTypes, [type.id]: e.target.checked})}
+                            className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500 mr-3"
+                          />
+                          <span className="font-medium text-slate-700">{type.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">
-                  Số lượng bài đọc (Passages): {numPassages}
-                </label>
-                <input 
-                  type="range"
-                  min="1"
-                  max="5"
-                  value={numPassages}
-                  onChange={(e) => setNumPassages(parseInt(e.target.value))}
-                  className="w-full accent-indigo-600"
-                />
-                <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                  <span>1 bài</span>
-                  <span>5 bài</span>
-                </div>
-              </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">
+                      Số lượng bài đọc (Passages): {numPassages}
+                    </label>
+                    <input 
+                      type="range"
+                      min="1"
+                      max="5"
+                      value={numPassages}
+                      onChange={(e) => setNumPassages(parseInt(e.target.value))}
+                      className="w-full accent-indigo-600"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                      <span>1 bài</span>
+                      <span>5 bài</span>
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">
-                  Số lượng câu hỏi (mỗi đoạn): {numQuestions}
-                </label>
-                <input 
-                  type="range"
-                  min="3"
-                  max="15"
-                  value={numQuestions}
-                  onChange={(e) => setNumQuestions(parseInt(e.target.value))}
-                  className="w-full accent-indigo-600"
-                />
-                <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                  <span>3 câu</span>
-                  <span>15 câu</span>
-                </div>
-              </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">
+                      Số lượng câu hỏi (mỗi đoạn): {numQuestions}
+                    </label>
+                    <input 
+                      type="range"
+                      min="3"
+                      max="15"
+                      value={numQuestions}
+                      onChange={(e) => setNumQuestions(parseInt(e.target.value))}
+                      className="w-full accent-indigo-600"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                      <span>3 câu</span>
+                      <span>15 câu</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

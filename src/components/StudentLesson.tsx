@@ -10,10 +10,12 @@ import {
   Check, X, Trophy, Share2, User, ChevronRight, ChevronLeft,
   Info, Type as TypeIcon, FileText, HelpCircle, BookOpen,
   GraduationCap, Headphones, Mail, AlertCircle, Loader2,
-  Mic, Square, ExternalLink, AlertTriangle
+  Mic, Square, ExternalLink, AlertTriangle, Download
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { cn, isInAppBrowser } from '../lib/utils';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function StudentLesson() {
   const { lessonId } = useParams();
@@ -215,14 +217,115 @@ export default function StudentLesson() {
     return Math.round((matches / w2.length) * 100);
   };
 
+  const downloadWorksheet = () => {
+    if (!lesson) return;
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(20);
+    doc.text(lesson.title, 14, 22);
+    
+    doc.setFontSize(12);
+    doc.text(`Level: ${lesson.level}`, 14, 30);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 38);
+
+    let yPos = 50;
+
+    if (lesson.passage) {
+      doc.setFontSize(14);
+      doc.text("Reading Passage", 14, yPos);
+      yPos += 10;
+      doc.setFontSize(10);
+      const splitPassage = doc.splitTextToSize(lesson.passage, 180);
+      doc.text(splitPassage, 14, yPos);
+      yPos += splitPassage.length * 5 + 10;
+    }
+
+    const tableData: any[] = [];
+    if (lesson.sections) {
+      lesson.sections.forEach((section, sIdx) => {
+        tableData.push([{ content: section.title, colSpan: 4, styles: { fillColor: [240, 240, 240], fontStyle: 'bold' } }]);
+        section.questions.forEach((q, qIdx) => {
+          tableData.push([
+            qIdx + 1,
+            q.question,
+            q.type === 'multipleChoice' ? q.options?.[Number(q.answer)] : q.answer,
+            q.explanation
+          ]);
+        });
+      });
+    } else {
+      (lesson.readingQuestions || []).forEach((q, i) => {
+        tableData.push([
+          i + 1,
+          q.question,
+          q.type === 'multipleChoice' ? q.options?.[Number(q.answer)] : q.answer,
+          q.explanation
+        ]);
+      });
+    }
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['#', 'Question', 'Correct Answer', 'Explanation']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [79, 70, 229] },
+      columnStyles: {
+        0: { cellWidth: 10 },
+        1: { cellWidth: 60 },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 70 }
+      }
+    });
+
+    doc.save(`${lesson.title}_Worksheet.pdf`);
+  };
+
   const calculateScore = () => {
     if (!lesson) return 0;
+    
+    const isAnswerCorrect = (userAnswer: any, correctAnswer: any, type: string) => {
+      if (type === 'multipleChoice') return userAnswer === correctAnswer;
+      
+      const userStr = String(userAnswer || '').toLowerCase().trim();
+      const correctStr = String(correctAnswer || '').toLowerCase().trim();
+      
+      if (userStr === correctStr) return true;
+      
+      // Fuzzy matching for open-ended questions with > 3 words
+      const correctWords = correctStr.split(/\s+/).filter(w => w.length > 0);
+      if (correctWords.length > 3) {
+        const userWords = userStr.split(/\s+/).filter(w => w.length > 0);
+        let matches = 0;
+        correctWords.forEach(word => {
+          if (userWords.includes(word)) matches++;
+        });
+        const similarity = matches / correctWords.length;
+        return similarity >= 0.8;
+      }
+      
+      return false;
+    };
+
     if (lessonType === 'reading') {
+      if (lesson.sections) {
+        let total = 0;
+        let correct = 0;
+        lesson.sections.forEach((section, sIdx) => {
+          section.questions.forEach((q, qIdx) => {
+            total++;
+            const userAns = answers.reading[`${sIdx}-${qIdx}`];
+            if (isAnswerCorrect(userAns, q.answer, q.type)) correct++;
+          });
+        });
+        return Math.round((correct / (total || 1)) * 100) / 10;
+      }
+
       const correct = (answers.reading || []).filter((a: any, i: number) => {
         const q = lesson.readingQuestions?.[i];
         if (!q) return false;
-        if (q.type === 'multipleChoice') return a === q.answer;
-        return (a || '').toLowerCase().trim() === String(q.answer).toLowerCase().trim();
+        return isAnswerCorrect(a, q.answer, q.type);
       }).length;
       return Math.round((correct / (lesson.readingQuestions?.length || 1)) * 100) / 10;
     }
@@ -330,12 +433,53 @@ export default function StudentLesson() {
           ).length;
         }
       } else if (lessonType === 'reading') {
-        details.reading = (answers.reading || []).filter((a: any, i: number) => {
-          const q = lesson.readingQuestions?.[i];
-          if (!q) return false;
-          if (q.type === 'multipleChoice') return a === q.answer;
-          return (a || '').toLowerCase().trim() === String(q.answer).toLowerCase().trim();
-        }).length;
+        if (lesson.sections) {
+          let total = 0;
+          let correct = 0;
+          lesson.sections.forEach((section, sIdx) => {
+            section.questions.forEach((q, qIdx) => {
+              total++;
+              const userAns = answers.reading[`${sIdx}-${qIdx}`];
+              const userStr = String(userAns || '').toLowerCase().trim();
+              const correctStr = String(q.answer || '').toLowerCase().trim();
+              
+              if (userStr === correctStr) {
+                correct++;
+              } else {
+                const correctWords = correctStr.split(/\s+/).filter(w => w.length > 0);
+                if (correctWords.length > 3) {
+                  const userWords = userStr.split(/\s+/).filter(w => w.length > 0);
+                  let matches = 0;
+                  correctWords.forEach(word => {
+                    if (userWords.includes(word)) matches++;
+                  });
+                  if (matches / correctWords.length >= 0.8) correct++;
+                }
+              }
+            });
+          });
+          details.reading = correct;
+          details.total_reading = total;
+        } else {
+          details.reading = (answers.reading || []).filter((a: any, i: number) => {
+            const q = lesson.readingQuestions?.[i];
+            if (!q) return false;
+            if (q.type === 'multipleChoice') return a === q.answer;
+            const userStr = String(a || '').toLowerCase().trim();
+            const correctStr = String(q.answer).toLowerCase().trim();
+            if (userStr === correctStr) return true;
+            const correctWords = correctStr.split(/\s+/).filter(w => w.length > 0);
+            if (correctWords.length > 3) {
+              const userWords = userStr.split(/\s+/).filter(w => w.length > 0);
+              let matches = 0;
+              correctWords.forEach(word => {
+                if (userWords.includes(word)) matches++;
+              });
+              return matches / correctWords.length >= 0.8;
+            }
+            return false;
+          }).length;
+        }
       }
 
       const result: Result = {
@@ -407,7 +551,7 @@ export default function StudentLesson() {
                     <h1 className="text-2xl font-bold">{lesson.title}</h1>
                   </div>
                   <div className="p-8 max-h-[calc(100vh-200px)] overflow-y-auto leading-relaxed text-lg text-slate-700 whitespace-pre-wrap scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                    {lesson.passage}
+                    {lesson.passage || lesson.sections?.map(s => s.description).filter(Boolean).join('\n\n')}
                   </div>
                 </div>
               </div>
@@ -421,84 +565,195 @@ export default function StudentLesson() {
                   </h2>
 
                   <div className="space-y-8">
-                    {lesson.readingQuestions?.map((q, i) => (
-                      <div key={i} id={`question-${i}`} className="p-6 rounded-2xl border border-slate-100 bg-slate-50/50 scroll-mt-24">
-                        <p className="font-bold text-slate-800 mb-4 flex items-start">
-                          <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 shrink-0 mt-0.5">{i + 1}</span>
-                          {q.question}
-                        </p>
+                    {lesson.sections ? (
+                      lesson.sections.map((section, sIdx) => (
+                        <div key={sIdx} className="space-y-6">
+                          <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                            <h3 className="text-xl font-bold text-indigo-900">{section.title}</h3>
+                            {section.description && <p className="text-sm text-indigo-700 mt-1 italic">{section.description}</p>}
+                          </div>
+                          <div className="space-y-6">
+                            {section.questions.map((q, qIdx) => {
+                              const qKey = `${sIdx}-${qIdx}`;
+                              const isCorrect = (userAns: any, correctAns: any, type: string) => {
+                                if (type === 'multipleChoice') return userAns === correctAns;
+                                const userStr = String(userAns || '').toLowerCase().trim();
+                                const correctStr = String(correctAns || '').toLowerCase().trim();
+                                if (userStr === correctStr) return true;
+                                const correctWords = correctStr.split(/\s+/).filter(w => w.length > 0);
+                                if (correctWords.length > 3) {
+                                  const userWords = userStr.split(/\s+/).filter(w => w.length > 0);
+                                  let matches = 0;
+                                  correctWords.forEach(word => {
+                                    if (userWords.includes(word)) matches++;
+                                  });
+                                  return matches / correctWords.length >= 0.8;
+                                }
+                                return false;
+                              };
 
-                        {q.type === 'multipleChoice' && q.options && (
-                          <div className="grid grid-cols-1 gap-3">
-                            {q.options.map((opt, optIdx) => (
-                              <button
-                                key={optIdx}
-                                onClick={() => {
+                              return (
+                                <div key={qIdx} className="p-6 rounded-2xl border border-slate-100 bg-slate-50/50">
+                                  <p className="font-bold text-slate-800 mb-4 flex items-start">
+                                    <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 shrink-0 mt-0.5">{qIdx + 1}</span>
+                                    {q.question}
+                                  </p>
+
+                                  {q.type === 'multipleChoice' && q.options && (
+                                    <div className="grid grid-cols-1 gap-3">
+                                      {q.options.map((opt, optIdx) => (
+                                        <button
+                                          key={optIdx}
+                                          onClick={() => {
+                                            if (readingChecked) return;
+                                            const newAnswers = { ...answers.reading };
+                                            newAnswers[qKey] = optIdx;
+                                            setAnswers({ ...answers, reading: newAnswers });
+                                          }}
+                                          className={cn(
+                                            "text-left p-4 rounded-xl border-2 transition-all font-medium",
+                                            answers.reading[qKey] === optIdx
+                                              ? readingChecked
+                                                ? optIdx === q.answer
+                                                  ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                                                  : "border-red-500 bg-red-50 text-red-700"
+                                                : "border-indigo-600 bg-indigo-50 text-indigo-700"
+                                              : readingChecked && optIdx === q.answer
+                                                ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                                                : "border-slate-100 bg-white text-slate-600 hover:border-slate-200"
+                                          )}
+                                        >
+                                          <span className="mr-3 text-slate-400 font-bold">{String.fromCharCode(65 + optIdx)}.</span>
+                                          {opt}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {(q.type === 'trueFalse' || q.type === 'matching' || q.type === 'gapFill' || q.type === 'openEnded') && (
+                                    <div className="space-y-3">
+                                      <input 
+                                        type="text"
+                                        value={answers.reading[qKey] || ''}
+                                        onChange={(e) => {
+                                          if (readingChecked) return;
+                                          const newAnswers = { ...answers.reading };
+                                          newAnswers[qKey] = e.target.value;
+                                          setAnswers({ ...answers, reading: newAnswers });
+                                        }}
+                                        placeholder="Type your answer here..."
+                                        className={cn(
+                                          "w-full px-4 py-3 rounded-xl border-2 outline-none transition-all font-bold",
+                                          readingChecked
+                                            ? isCorrect(answers.reading[qKey], q.answer, q.type)
+                                              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                                              : "border-red-500 bg-red-50 text-red-700"
+                                            : "border-slate-100 focus:border-indigo-600"
+                                        )}
+                                      />
+                                      {readingChecked && (
+                                        <div className="text-xs font-bold text-emerald-600">
+                                          Correct Answer: {q.answer}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {readingChecked && q.explanation && (
+                                    <div className="mt-4 p-4 bg-indigo-50 rounded-xl border border-indigo-100 text-sm text-indigo-700">
+                                      <div className="flex items-center space-x-2 mb-1">
+                                        <Info className="w-4 h-4" />
+                                        <span className="font-bold uppercase tracking-wider text-[10px]">Explanation</span>
+                                      </div>
+                                      {q.explanation}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      lesson.readingQuestions?.map((q, i) => (
+                        <div key={i} id={`question-${i}`} className="p-6 rounded-2xl border border-slate-100 bg-slate-50/50 scroll-mt-24">
+                          <p className="font-bold text-slate-800 mb-4 flex items-start">
+                            <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 shrink-0 mt-0.5">{i + 1}</span>
+                            {q.question}
+                          </p>
+
+                          {q.type === 'multipleChoice' && q.options && (
+                            <div className="grid grid-cols-1 gap-3">
+                              {q.options.map((opt, optIdx) => (
+                                <button
+                                  key={optIdx}
+                                  onClick={() => {
+                                    if (readingChecked) return;
+                                    const newAnswers = [...(answers.reading || [])];
+                                    newAnswers[i] = optIdx;
+                                    setAnswers({ ...answers, reading: newAnswers });
+                                  }}
+                                  className={cn(
+                                    "text-left p-4 rounded-xl border-2 transition-all font-medium",
+                                    answers.reading[i] === optIdx
+                                      ? readingChecked
+                                        ? optIdx === q.answer
+                                          ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                                          : "border-red-500 bg-red-50 text-red-700"
+                                        : "border-indigo-600 bg-indigo-50 text-indigo-700"
+                                      : readingChecked && optIdx === q.answer
+                                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                                        : "border-slate-100 bg-white text-slate-600 hover:border-slate-200"
+                                  )}
+                                >
+                                  <span className="mr-3 text-slate-400 font-bold">{String.fromCharCode(65 + optIdx)}.</span>
+                                  {opt}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {(q.type === 'trueFalse' || q.type === 'matching' || q.type === 'gapFill' || q.type === 'openEnded') && (
+                            <div className="space-y-3">
+                              <input 
+                                type="text"
+                                value={answers.reading[i] || ''}
+                                onChange={(e) => {
                                   if (readingChecked) return;
                                   const newAnswers = [...(answers.reading || [])];
-                                  newAnswers[i] = optIdx;
+                                  newAnswers[i] = e.target.value;
                                   setAnswers({ ...answers, reading: newAnswers });
                                 }}
+                                placeholder="Type your answer here..."
                                 className={cn(
-                                  "text-left p-4 rounded-xl border-2 transition-all font-medium",
-                                  answers.reading[i] === optIdx
-                                    ? readingChecked
-                                      ? optIdx === q.answer
-                                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                                        : "border-red-500 bg-red-50 text-red-700"
-                                      : "border-indigo-600 bg-indigo-50 text-indigo-700"
-                                    : readingChecked && optIdx === q.answer
+                                  "w-full px-4 py-3 rounded-xl border-2 outline-none transition-all font-bold",
+                                  readingChecked
+                                    ? (answers.reading[i] || '').toLowerCase().trim() === String(q.answer).toLowerCase().trim()
                                       ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                                      : "border-slate-100 bg-white text-slate-600 hover:border-slate-200"
+                                      : "border-red-500 bg-red-50 text-red-700"
+                                    : "border-slate-100 focus:border-indigo-600"
                                 )}
-                              >
-                                <span className="mr-3 text-slate-400 font-bold">{String.fromCharCode(65 + optIdx)}.</span>
-                                {opt}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        {(q.type === 'trueFalse' || q.type === 'matching' || q.type === 'gapFill') && (
-                          <div className="space-y-3">
-                            <input 
-                              type="text"
-                              value={answers.reading[i] || ''}
-                              onChange={(e) => {
-                                if (readingChecked) return;
-                                const newAnswers = [...(answers.reading || [])];
-                                newAnswers[i] = e.target.value;
-                                setAnswers({ ...answers, reading: newAnswers });
-                              }}
-                              placeholder="Type your answer here..."
-                              className={cn(
-                                "w-full px-4 py-3 rounded-xl border-2 outline-none transition-all font-bold",
-                                readingChecked
-                                  ? (answers.reading[i] || '').toLowerCase().trim() === String(q.answer).toLowerCase().trim()
-                                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                                    : "border-red-500 bg-red-50 text-red-700"
-                                  : "border-slate-100 focus:border-indigo-600"
+                              />
+                              {readingChecked && (
+                                <div className="text-xs font-bold text-emerald-600">
+                                  Correct Answer: {q.answer}
+                                </div>
                               )}
-                            />
-                            {readingChecked && (
-                              <div className="text-xs font-bold text-emerald-600">
-                                Correct Answer: {q.answer}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {readingChecked && q.explanation && (
-                          <div className="mt-4 p-4 bg-indigo-50 rounded-xl border border-indigo-100 text-sm text-indigo-700">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <Info className="w-4 h-4" />
-                              <span className="font-bold uppercase tracking-wider text-[10px]">Explanation</span>
                             </div>
-                            {q.explanation}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                          )}
+
+                          {readingChecked && q.explanation && (
+                            <div className="mt-4 p-4 bg-indigo-50 rounded-xl border border-indigo-100 text-sm text-indigo-700">
+                              <div className="flex items-center space-x-2 mb-1">
+                                <Info className="w-4 h-4" />
+                                <span className="font-bold uppercase tracking-wider text-[10px]">Explanation</span>
+                              </div>
+                              {q.explanation}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
                   </div>
 
                   <div className="mt-10 pt-8 border-t border-slate-100">
@@ -517,12 +772,7 @@ export default function StudentLesson() {
                           <h3 className="text-2xl font-bold text-emerald-900">Well Done!</h3>
                           <p className="text-emerald-700">You've completed the reading exercise.</p>
                           <div className="mt-4 text-4xl font-black text-emerald-600">
-                            {Math.round((lesson.readingQuestions?.filter((q, i) => {
-                              const userAns = answers.reading[i];
-                              const correctAns = q.answer;
-                              if (q.type === 'multipleChoice') return userAns === correctAns;
-                              return (userAns || '').toLowerCase().trim() === String(correctAns).toLowerCase().trim();
-                            }).length || 0) / (lesson.readingQuestions?.length || 1) * 100)}%
+                            {calculateScore() * 10}%
                           </div>
                         </div>
                         {error && (
@@ -1299,7 +1549,7 @@ export default function StudentLesson() {
             animate={{ opacity: 1, scale: 1 }}
             className="max-w-2xl mx-auto bg-white p-12 rounded-3xl border border-slate-200 shadow-2xl text-center"
           >
-            {calculateScore() >= 8 ? (
+            {calculateScore() >= (lesson?.passingPercentage || 8) ? (
               <div className="bg-emerald-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8">
                 <Trophy className="w-12 h-12 text-emerald-600" />
               </div>
@@ -1310,21 +1560,21 @@ export default function StudentLesson() {
             )}
             
             <h2 className="text-4xl font-extrabold text-slate-900 mb-2">
-              {calculateScore() >= 8 ? `Chúc mừng, ${studentName}!` : `Cố gắng lên, ${studentName}!`}
+              {calculateScore() >= (lesson?.passingPercentage || 8) ? `Chúc mừng, ${studentName}!` : `Cố gắng lên, ${studentName}!`}
             </h2>
             <p className="text-slate-500 mb-10 text-lg">
-              {calculateScore() >= 8 
+              {calculateScore() >= (lesson?.passingPercentage || 8) 
                 ? "Bạn đã hoàn thành bài học xuất sắc và đạt yêu cầu." 
-                : "Bạn cần đạt ít nhất 8.0 điểm để hoàn thành bài tập này."}
+                : `Bạn cần đạt ít nhất ${(lesson?.passingPercentage || 8).toFixed(1)} điểm để hoàn thành bài tập này.`}
             </p>
             
             <div className={cn(
               "p-8 rounded-3xl mb-10 transition-colors",
-              calculateScore() >= 8 ? "bg-emerald-50" : "bg-amber-50"
+              calculateScore() >= (lesson?.passingPercentage || 8) ? "bg-emerald-50" : "bg-amber-50"
             )}>
               <div className={cn(
                 "text-6xl font-black mb-2",
-                calculateScore() >= 8 ? "text-emerald-600" : "text-amber-600"
+                calculateScore() >= (lesson?.passingPercentage || 8) ? "text-emerald-600" : "text-amber-600"
               )}>
                 {calculateScore()}
               </div>
@@ -1380,16 +1630,20 @@ export default function StudentLesson() {
                   </div>
                 </>
               ) : (
-                <div className="col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <div className="col-span-full bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                   <div className="text-2xl font-bold text-slate-900">
-                    {(answers.reading || []).filter((a: any, i: number) => {
-                      const q = lesson.readingQuestions?.[i];
-                      if (!q) return false;
-                      if (q.type === 'multipleChoice') return a === q.answer;
-                      return (a || '').toLowerCase().trim() === String(q.answer).toLowerCase().trim();
-                    }).length} / {lesson.readingQuestions?.length}
+                    {lesson.sections ? (
+                      `${calculateScore()} / 10`
+                    ) : (
+                      `${(answers.reading || []).filter((a: any, i: number) => {
+                        const q = lesson.readingQuestions?.[i];
+                        if (!q) return false;
+                        if (q.type === 'multipleChoice') return a === q.answer;
+                        return (a || '').toLowerCase().trim() === String(q.answer).toLowerCase().trim();
+                      }).length} / ${lesson.readingQuestions?.length}`
+                    )}
                   </div>
-                  <div className="text-xs font-bold text-slate-400 uppercase mt-1">Reading Correct</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase mt-1">Reading Score</div>
                 </div>
               )}
             </div>
@@ -1399,15 +1653,23 @@ export default function StudentLesson() {
                 onClick={() => window.location.reload()}
                 className={cn(
                   "w-full py-4 rounded-xl font-bold text-lg transition-all active:scale-95",
-                  calculateScore() >= 8 
+                  calculateScore() >= (lesson?.passingPercentage || 8) 
                     ? "bg-slate-900 text-white hover:bg-slate-800" 
                     : "bg-amber-600 text-white hover:bg-amber-700 shadow-lg shadow-amber-100"
                 )}
               >
-                {calculateScore() >= 8 ? "Làm lại bài tập" : "Làm lại ngay (Bắt buộc)"}
+                {calculateScore() >= (lesson?.passingPercentage || 8) ? "Làm lại bài tập" : "Làm lại ngay (Bắt buộc)"}
+              </button>
+
+              <button 
+                onClick={downloadWorksheet}
+                className="w-full flex items-center justify-center space-x-2 bg-indigo-50 text-indigo-700 py-4 rounded-xl font-bold text-lg hover:bg-indigo-100 transition-all active:scale-95"
+              >
+                <Download className="w-5 h-5" />
+                <span>Download Worksheet (Answers)</span>
               </button>
               
-              {calculateScore() >= 8 && (
+              {calculateScore() >= (lesson?.passingPercentage || 8) && (
                 <button 
                   onClick={() => navigate('/student')}
                   className="w-full bg-white text-slate-600 border border-slate-200 py-4 rounded-xl font-bold text-lg hover:bg-slate-50 transition-all active:scale-95"

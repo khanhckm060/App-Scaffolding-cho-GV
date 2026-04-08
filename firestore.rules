@@ -8,9 +8,14 @@ service cloud.firestore {
     // Collection: lessons
     // Fields:
     //   - title: string (required, 1-200 chars)
-    //   - script: string (required, 1-10000 chars)
+    //   - script: string (optional, for listening)
     //   - vocabulary: list (required, < 50 items)
-    //   - steps: map (required)
+    //   - steps: map (optional, for listening)
+    //   - passage: string (optional, for reading)
+    //   - passages: list (optional, for reading)
+    //   - readingQuestions: list (optional, for reading)
+    //   - sections: list (optional, for structured exams)
+    //   - passingPercentage: number (optional)
     //   - teacherId: string (required, matches auth.uid)
     //   - createdAt: string (required, ISO 8601)
     //
@@ -80,7 +85,8 @@ service cloud.firestore {
                    data.teacherId == request.auth.uid &&
                    isValidDateString(data.createdAt) &&
                    data.type in ['listening', 'reading'] &&
-                   data.level in ['A0', 'A1', 'A2', 'B1', 'B2', 'C1'];
+                   data.level in ['A0', 'A1', 'A2', 'B1', 'B2', 'C1'] &&
+                   (!('passingPercentage' in data) || (data.passingPercentage is number && data.passingPercentage >= 0 && data.passingPercentage <= 10));
       
       let listening = data.type == 'listening' &&
                       data.script is string && data.script.size() > 0 && data.script.size() < 10000 &&
@@ -88,9 +94,11 @@ service cloud.firestore {
                       data.steps is map;
                       
       let reading = data.type == 'reading' &&
-                    data.passage is string && data.passage.size() > 0 && data.passage.size() < 10000 &&
                     data.vocabulary is list && data.vocabulary.size() < 50 &&
-                    data.readingQuestions is list;
+                    (
+                      (data.passage is string && data.passage.size() > 0 && data.readingQuestions is list) ||
+                      (data.sections is list && data.sections.size() > 0)
+                    );
                     
       return common && (listening || reading);
     }
