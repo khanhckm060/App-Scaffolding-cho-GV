@@ -87,16 +87,37 @@ export default function LessonCreator() {
       navigate('/teacher?tab=lessons');
     } catch (err: any) {
       console.error("Error generating lesson:", err);
-      // If it's a Firestore error that was already handled and re-thrown by handleFirestoreError
-      // it will be a JSON string. We should try to parse it or just show the message.
-      let message = err.message || "Failed to generate lesson. Please check your script and try again.";
-      try {
-        const parsed = JSON.parse(message);
-        if (parsed.error) message = parsed.error;
-      } catch (e) {
-        // Not a JSON string, use as is
+      
+      let message = "Failed to generate lesson. Please check your script and try again.";
+      
+      if (err && typeof err === 'object') {
+        // Handle standard Error objects or objects with message property
+        if (err.message) {
+          const rawMessage = typeof err.message === 'object' ? JSON.stringify(err.message) : String(err.message);
+          message = rawMessage;
+          
+          // Try to parse JSON if it's our custom error from handleFirestoreError
+          try {
+            const parsed = JSON.parse(rawMessage);
+            if (parsed && typeof parsed === 'object' && parsed.error) {
+              message = String(parsed.error);
+            }
+          } catch (e) {
+            // Not JSON, keep rawMessage
+          }
+        } else {
+          // Object without message, stringify the whole thing
+          try {
+            message = JSON.stringify(err);
+          } catch (e) {
+            message = "An unknown object error occurred.";
+          }
+        }
+      } else if (err) {
+        message = String(err);
       }
-      setError(String(message));
+      
+      setError(message);
     } finally {
       setLoading(false);
     }

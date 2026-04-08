@@ -321,16 +321,31 @@ export default function ReadingLessonCreator() {
     } catch (err: any) {
       console.error("Error generating lesson:", err);
       let message = "Có lỗi xảy ra khi tạo bài tập. Vui lòng thử lại.";
-      if (err.message) {
-        try {
-          const parsed = JSON.parse(err.message);
-          if (parsed.error) message = parsed.error;
-          else message = err.message;
-        } catch (e) {
-          message = err.message;
+      
+      if (err && typeof err === 'object') {
+        if (err.message) {
+          const rawMessage = typeof err.message === 'object' ? JSON.stringify(err.message) : String(err.message);
+          message = rawMessage;
+          try {
+            const parsed = JSON.parse(rawMessage);
+            if (parsed && typeof parsed === 'object' && parsed.error) {
+              message = String(parsed.error);
+            }
+          } catch (e) {
+            // Not JSON
+          }
+        } else {
+          try {
+            message = JSON.stringify(err);
+          } catch (e) {
+            message = "An unknown error occurred.";
+          }
         }
+      } else if (err) {
+        message = String(err);
       }
-      setError(String(message));
+      
+      setError(message);
     } finally {
       setLoading(false);
     }
