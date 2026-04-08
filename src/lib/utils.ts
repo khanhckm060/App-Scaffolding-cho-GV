@@ -51,6 +51,28 @@ export function stringifyError(err: any): string {
   }
 }
 
+export function getDirectAudioUrl(url: string): string {
+  if (!url) return "";
+  
+  // Google Drive
+  // Matches: 
+  // - drive.google.com/file/d/ID/view
+  // - drive.google.com/uc?id=ID
+  // - drive.google.com/open?id=ID
+  const driveMatch = url.match(/(?:id=|\/d\/|file\/d\/)([\w-]{25,})/);
+  if (driveMatch && driveMatch[1]) {
+    // Using docs.google.com/uc?id=ID is often more reliable for direct streaming
+    return `https://docs.google.com/uc?id=${driveMatch[1]}&export=download`;
+  }
+  
+  // Dropbox
+  if (url.includes("dropbox.com")) {
+    return url.replace("www.dropbox.com", "dl.dropboxusercontent.com").replace("?dl=0", "").replace("?dl=1", "");
+  }
+  
+  return url;
+}
+
 export function isInAppBrowser() {
   const ua = navigator.userAgent || navigator.vendor || (window as any).opera;
   return (

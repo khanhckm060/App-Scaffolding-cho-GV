@@ -4,8 +4,8 @@ import { collection, addDoc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { generateScaffolding } from '../services/gemini';
 import { LessonLevel, LEVEL_DESCRIPTIONS } from '../types';
-import { stringifyError } from '../lib/utils';
-import { Sparkles, Send, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
+import { stringifyError, getDirectAudioUrl, cn } from '../lib/utils';
+import { Sparkles, Send, Loader2, AlertCircle, ChevronDown, Info, Play, CheckCircle2, X } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function LessonCreator() {
@@ -16,26 +16,12 @@ export default function LessonCreator() {
   const [audioUrl, setAudioUrl] = useState('');
   const [audioStart, setAudioStart] = useState(0);
   const [audioEnd, setAudioEnd] = useState(0);
+  const [showAudioHelp, setShowAudioHelp] = useState(false);
+  const [testAudioUrl, setTestAudioUrl] = useState('');
+  const [isTestingAudio, setIsTestingAudio] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-
-  /* 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError("File is too large. Please use a file under 5MB or provide a URL.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setAudioUrl(event.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-  */
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,15 +128,93 @@ export default function LessonCreator() {
 
         <div className="grid grid-cols-1 gap-6">
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Audio URL (Required)</label>
-            <input 
-              type="url" 
-              required
-              value={audioUrl.startsWith('data:') ? '' : audioUrl}
-              onChange={(e) => setAudioUrl(e.target.value)}
-              placeholder="https://example.com/audio.mp3"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
-            />
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Audio URL (Required)</label>
+              <button 
+                type="button"
+                onClick={() => setShowAudioHelp(!showAudioHelp)}
+                className="text-indigo-600 hover:text-indigo-700 text-xs font-bold flex items-center space-x-1"
+              >
+                <Info className="w-3 h-3" />
+                <span>How to get link?</span>
+              </button>
+            </div>
+            
+            <div className="flex space-x-2">
+              <input 
+                type="url" 
+                required
+                value={audioUrl}
+                onChange={(e) => setAudioUrl(e.target.value)}
+                placeholder="https://drive.google.com/file/d/..."
+                className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+              />
+              {audioUrl && (
+                <button
+                  type="button"
+                  disabled={isTestingAudio}
+                  onClick={() => {
+                    setIsTestingAudio(true);
+                    setTestAudioUrl(getDirectAudioUrl(audioUrl));
+                  }}
+                  className="px-4 py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center space-x-2 disabled:opacity-50"
+                >
+                  {isTestingAudio ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                  <span>{isTestingAudio ? 'Loading...' : 'Test Audio'}</span>
+                </button>
+              )}
+            </div>
+
+            {showAudioHelp && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-sm text-indigo-900 space-y-3"
+              >
+                <div>
+                  <p className="font-bold mb-1">1. Dropbox (Khuyên dùng):</p>
+                  <ul className="list-disc list-inside space-y-1 ml-2 text-indigo-800">
+                    <li>Đăng nhập vào link sau: <a href="https://www.dropbox.com/" target="_blank" rel="noopener noreferrer" className="underline font-bold">https://www.dropbox.com/</a></li>
+                    <li>Upload file mp3 lên.</li>
+                    <li>Copy link chia sẻ và dán vào khung bên trên.</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-bold mb-1">2. Lấy direct link (bằng trình duyệt Chrome):</p>
+                  <ul className="list-disc list-inside space-y-1 ml-2 text-indigo-800">
+                    <li>Truy cập trang web có file nghe bạn muốn lấy.</li>
+                    <li>Click chuột phải vào chỗ trống bất kì chọn <strong>View Page Source (Xem nguồn trang)</strong>.</li>
+                    <li>Nhấn <strong>Control + F</strong> (hoặc Command + F) và tìm từ khóa: <code>.mp3</code></li>
+                    <li>Chọn link có dạng: <code>https://..........mp3</code></li>
+                    <li>Copy link đó và dán vào khung bên trên.</li>
+                  </ul>
+                </div>
+                <p className="text-xs italic text-indigo-600">Lưu ý: Link phải ở chế độ công khai để học sinh có thể nghe được.</p>
+              </motion.div>
+            )}
+
+            {isTestingAudio && testAudioUrl && (
+              <div className="mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <audio 
+                  src={testAudioUrl} 
+                  controls 
+                  autoPlay
+                  crossOrigin="anonymous"
+                  className="h-8 flex-1 max-w-xs"
+                  onError={() => {
+                    alert("Không thể phát file này. Vui lòng kiểm tra lại link hoặc quyền truy cập.");
+                    setIsTestingAudio(false);
+                  }}
+                />
+                <button 
+                  type="button"
+                  onClick={() => setIsTestingAudio(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

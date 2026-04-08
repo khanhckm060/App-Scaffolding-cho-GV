@@ -13,7 +13,7 @@ import {
   Mic, Square, ExternalLink, AlertTriangle, Download
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { cn, isInAppBrowser } from '../lib/utils';
+import { cn, isInAppBrowser, getDirectAudioUrl } from '../lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -49,6 +49,7 @@ export default function StudentLesson() {
   const [gapFillChecked, setGapFillChecked] = useState(false);
   const [mcqChecked, setMcqChecked] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [audioError, setAudioError] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
 
   useEffect(() => {
@@ -104,7 +105,20 @@ export default function StudentLesson() {
   const speak = (text: string, rate = 1) => {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
+    
+    // Try to find a high-quality English voice
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(v => 
+      (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Premium')) && 
+      v.lang.startsWith('en')
+    ) || voices.find(v => v.lang.startsWith('en'));
+    
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    } else {
+      utterance.lang = 'en-US';
+    }
+    
     utterance.rate = isSlow ? rate * 0.6 : rate;
     window.speechSynthesis.speak(utterance);
   };
@@ -1446,20 +1460,28 @@ export default function StudentLesson() {
                     <p className="text-sm text-indigo-700">Fill in the blanks as you listen.</p>
                   </div>
                 </div>
-                {lesson.audioUrl ? (
-                  <audio 
-                    controls 
-                    src={lesson.audioUrl} 
-                    className="w-full max-w-xs"
-                    onPlay={handleAudioPlay}
-                    onTimeUpdate={handleAudioTimeUpdate}
-                  />
+                {lesson.audioUrl && !audioError ? (
+                  <div className="flex flex-col items-end space-y-1">
+                    <audio 
+                      controls 
+                      src={getDirectAudioUrl(lesson.audioUrl)} 
+                      className="w-full max-w-xs h-10"
+                      onPlay={handleAudioPlay}
+                      onTimeUpdate={handleAudioTimeUpdate}
+                      onError={() => {
+                        console.warn("Audio failed to load, falling back to TTS");
+                        setAudioError(true);
+                      }}
+                    />
+                    <p className="text-[10px] text-slate-400 italic">Nếu audio không chạy, hệ thống sẽ tự chuyển sang giọng đọc AI</p>
+                  </div>
                 ) : (
                   <button 
                     onClick={() => speak(lesson.script || '')}
-                    className="bg-white text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-colors shadow-sm"
+                    className="bg-white text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-colors shadow-sm border border-indigo-100 flex items-center space-x-2"
                   >
-                    Play Full Audio
+                    <Play className="w-4 h-4" />
+                    <span>Play AI Voice Fallback</span>
                   </button>
                 )}
               </div>
@@ -1525,19 +1547,49 @@ export default function StudentLesson() {
           >
             <StepHeader current={6} total={6} title="Comprehension Check" icon={HelpCircle} />
             
-            {lesson.audioUrl && (
+            {lesson.audioUrl && !audioError ? (
               <div className="bg-white p-6 rounded-2xl border border-slate-200 mb-6 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <Volume2 className="text-indigo-600" />
                   <span className="font-bold text-slate-700">Listen to the segment again</span>
                 </div>
-                <audio 
-                  controls 
-                  src={lesson.audioUrl} 
-                  className="max-w-xs"
-                  onPlay={handleAudioPlay}
-                  onTimeUpdate={handleAudioTimeUpdate}
-                />
+                <div className="flex flex-col items-end space-y-1">
+                  <audio 
+                    controls 
+                    src={getDirectAudioUrl(lesson.audioUrl)} 
+                    className="max-w-xs h-10"
+                    onPlay={handleAudioPlay}
+                    onTimeUpdate={handleAudioTimeUpdate}
+                    onError={() => setAudioError(true)}
+                  />
+                  <p className="text-[10px] text-slate-400 italic">Nếu audio không chạy, hệ thống sẽ tự dùng giọng đọc AI</p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 mb-6 flex items-center justify-center">
+                <button 
+                  onClick={() => speak(lesson.script || '')}
+                  className="bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-colors flex items-center space-x-2"
+                >
+                  <Play className="w-4 h-4" />
+                  <span>Play AI Voice Fallback</span>
+                </button>
+              </div>
+            )}
+
+            {audioError && (
+              <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 mb-6 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Volume2 className="text-indigo-600" />
+                  <span className="font-bold text-indigo-900">Audio file error - Using AI Voice fallback</span>
+                </div>
+                <button 
+                  onClick={() => speak(lesson.script || '')}
+                  className="bg-white text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-colors shadow-sm border border-indigo-100 flex items-center space-x-2"
+                >
+                  <Play className="w-4 h-4" />
+                  <span>Play AI Voice</span>
+                </button>
               </div>
             )}
 
