@@ -1,16 +1,22 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import { initializeApp, getApp, getApps } from "firebase/app";
-import { getFirestore, collection, query, where, getDocs, doc, getDoc, updateDoc, addDoc } from "firebase/firestore";
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
 
 // Load Firebase config
 const firebaseConfig = JSON.parse(fs.readFileSync("./firebase-applet-config.json", "utf-8"));
 
-// Initialize Firebase
-const app_firebase = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app_firebase, firebaseConfig.firestoreDatabaseId);
+// Initialize Firebase Admin
+const adminApp = getApps().length === 0 
+  ? initializeApp({
+      projectId: firebaseConfig.projectId,
+    })
+  : getApps()[0];
+
+// Get Firestore instance (supporting named database if provided)
+const db = getFirestore(adminApp, firebaseConfig.firestoreDatabaseId || "(default)");
 
 const app = express();
 app.use(express.json());
@@ -22,25 +28,6 @@ async function sendEmail(to: string, subject: string, body: string) {
   console.log(`[EMAIL SIMULATION] Subject: ${subject}`);
   console.log(`[EMAIL SIMULATION] Body: \n${body}`);
   console.log('-----------------------------------');
-  
-  // In a real app, you would use a service like Resend or SendGrid here:
-  /*
-  if (process.env.RESEND_API_KEY) {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`
-      },
-      body: JSON.stringify({
-        from: 'English AI <notifications@yourdomain.com>',
-        to: [to],
-        subject: subject,
-        html: body.replace(/\n/g, '<br>')
-      })
-    });
-  }
-  */
 }
 
 // API: Notify assignment creation
@@ -77,13 +64,11 @@ setInterval(async () => {
   
   try {
     // 1. Find assignments with deadline within the next 4 hours
-    const q = query(
-      collection(db, "assignments"),
-      where("deadline", ">", now.toISOString()),
-      where("deadline", "<=", fourHoursFromNow.toISOString())
-    );
-    
-    const snapshot = await getDocs(q);
+    const assignmentsRef = db.collection("assignments");
+    const snapshot = await assignmentsRef
+      .where("deadline", ">", now.toISOString())
+      .where("deadline", "<=", fourHoursFromNow.toISOString())
+      .get();
     
     for (const assignmentDoc of snapshot.docs) {
       const assignment = assignmentDoc.data();
@@ -93,21 +78,19 @@ setInterval(async () => {
       if (assignment.reminderSent) continue;
 
       // Get lesson title
-      const lessonSnap = await getDoc(doc(db, "lessons", assignment.lessonId));
-      const lessonTitle = lessonSnap.exists() ? lessonSnap.data().title : "Bài tập";
+      const lessonSnap = await db.collection("lessons").doc(assignment.lessonId).get();
+      const lessonTitle = lessonSnap.exists ? lessonSnap.data()?.title : "Bài tập";
 
       // For each student, check if they completed it with required score
       const targetPercent = assignment.passingPercentage || 80;
       const targetScore = (targetPercent / 100) * 10;
 
       for (const email of assignment.studentEmails) {
-        const resultsQuery = query(
-          collection(db, "results"),
-          where("assignmentId", "==", assignmentId),
-          where("studentEmail", "==", email)
-        );
-        
-        const resultsSnap = await getDocs(resultsQuery);
+        const resultsSnap = await db.collection("results")
+          .where("assignmentId", "==", assignmentId)
+          .where("studentEmail", "==", email)
+          .get();
+          
         const bestScore = resultsSnap.docs.reduce((max, d) => Math.max(max, d.data().score), 0);
         
         if (bestScore < targetScore) {
@@ -125,7 +108,7 @@ Hãy nhanh chóng hoàn thành bài tập để đảm bảo tiến độ học 
       }
       
       // Mark reminder as sent
-      await updateDoc(doc(db, "assignments", assignmentId), {
+      await assignmentsRef.doc(assignmentId).update({
         reminderSent: true
       });
     }

@@ -86,7 +86,7 @@ service cloud.firestore {
                    isValidDateString(data.createdAt) &&
                    data.type in ['listening', 'reading'] &&
                    data.level in ['A0', 'A1', 'A2', 'B1', 'B2', 'C1'] &&
-                   (!('passingPercentage' in data) || (data.passingPercentage is number && data.passingPercentage >= 0 && data.passingPercentage <= 10));
+                   (!('passingPercentage' in data) || (data.passingPercentage is number && data.passingPercentage >= 0 && data.passingPercentage <= 100));
       
       let listening = data.type == 'listening' &&
                       data.script is string && data.script.size() > 0 && data.script.size() < 10000 &&
@@ -133,7 +133,8 @@ service cloud.firestore {
              data.studentEmails is list &&
              data.teacherId == request.auth.uid &&
              isValidDateString(data.deadline) &&
-             isValidDateString(data.createdAt);
+             isValidDateString(data.createdAt) &&
+             (!('passingPercentage' in data) || (data.passingPercentage is number && data.passingPercentage >= 0 && data.passingPercentage <= 100));
     }
 
     match /lessons/{lessonId} {
