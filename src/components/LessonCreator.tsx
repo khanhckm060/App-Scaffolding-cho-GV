@@ -199,7 +199,6 @@ export default function LessonCreator() {
                   src={testAudioUrl} 
                   controls 
                   autoPlay
-                  crossOrigin="anonymous"
                   className="h-8 flex-1 max-w-xs"
                   onError={() => {
                     alert("Không thể phát file này. Vui lòng kiểm tra lại link hoặc quyền truy cập.");
