@@ -333,7 +333,7 @@ export default function StudentLesson() {
 
       // Script/Passage in Answer Key
       doc.setFontSize(14);
-      doc.text(lesson.type === 'reading' ? "Reading Passage" : "Listening Script", 14, yPos);
+      doc.text("Listening Script", 14, yPos);
       yPos += 8;
       doc.setFontSize(10);
       const splitScript = doc.splitTextToSize(lesson.passage || lesson.script || '', 180);

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, getDocs, deleteDoc, doc, orderBy, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, deleteDoc, doc, orderBy, addDoc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Lesson, Class, Student, Assignment, Result } from '../types';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, ExternalLink, BarChart2, Calendar, BookOpen, Users, GraduationCap, Send, ChevronRight, UserPlus, Mail, Phone, Clock, CheckCircle2, AlertCircle, Share2, Copy, Headphones, Mic, PenTool, X, Download, Loader2, FileSpreadsheet } from 'lucide-react';
+import { Plus, Trash2, Edit2, ExternalLink, BarChart2, Calendar, BookOpen, Users, GraduationCap, Send, ChevronRight, UserPlus, Mail, Phone, Clock, CheckCircle2, AlertCircle, Share2, Copy, Headphones, Mic, PenTool, X, Download, Loader2, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { downloadWorksheet } from '../lib/worksheet';
@@ -29,6 +29,8 @@ export default function TeacherDashboard() {
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [importing, setImporting] = useState(false);
   const [newStudent, setNewStudent] = useState({ name: '', phone: '', email: '' });
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [showEditStudent, setShowEditStudent] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showCreateTypeModal, setShowCreateTypeModal] = useState(false);
   const [selectedLessonForAssign, setSelectedLessonForAssign] = useState<Lesson | null>(null);
@@ -235,6 +237,25 @@ export default function TeacherDashboard() {
     if (selectedClassId === id) setSelectedClassId(null);
   };
 
+  const deleteStudent = async (id: string) => {
+    if (!confirm("Bạn có chắc chắn muốn xóa học sinh này khỏi danh sách lớp?")) return;
+    await deleteDoc(doc(db, 'students', id));
+  };
+
+  const handleEditStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent || !editingStudent.id) return;
+    
+    await updateDoc(doc(db, 'students', editingStudent.id), {
+      name: editingStudent.name,
+      phone: editingStudent.phone,
+      email: editingStudent.email
+    });
+    
+    setEditingStudent(null);
+    setShowEditStudent(false);
+  };
+
   if (loading) return <div className="text-center py-12">Đang tải dữ liệu...</div>;
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
@@ -415,12 +436,13 @@ export default function TeacherDashboard() {
                               <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Họ tên</th>
                               <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Liên hệ</th>
                               <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Kết quả gần nhất</th>
+                              <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Thao tác</th>
                             </tr>
                           </thead>
                           <tbody>
                             {classStudents.length === 0 ? (
                               <tr>
-                                <td colSpan={3} className="py-8 text-center text-slate-400 italic">Chưa có học sinh trong lớp này.</td>
+                                <td colSpan={4} className="py-8 text-center text-slate-400 italic">Chưa có học sinh trong lớp này.</td>
                               </tr>
                             ) : (
                               classStudents.map(student => {
@@ -451,6 +473,27 @@ export default function TeacherDashboard() {
                                       ) : (
                                         <span className="text-xs text-slate-300">Chưa làm bài</span>
                                       )}
+                                    </td>
+                                    <td className="py-4 px-4 text-right">
+                                      <div className="flex items-center justify-end space-x-2">
+                                        <button 
+                                          onClick={() => {
+                                            setEditingStudent(student);
+                                            setShowEditStudent(true);
+                                          }}
+                                          className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-all"
+                                          title="Sửa thông tin"
+                                        >
+                                          <Edit2 className="w-4 h-4" />
+                                        </button>
+                                        <button 
+                                          onClick={() => deleteStudent(student.id!)}
+                                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                          title="Xóa học sinh"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
                                 );
@@ -840,6 +883,69 @@ export default function TeacherDashboard() {
             </motion.div>
           </div>
         )}
+
+        {/* Edit Student Modal */}
+        <AnimatePresence>
+          {showEditStudent && editingStudent && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl"
+              >
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-2xl font-bold text-slate-900">Sửa thông tin học sinh</h3>
+                  <button onClick={() => setShowEditStudent(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                    <X className="w-6 h-6 text-slate-400" />
+                  </button>
+                </div>
+                
+                <form onSubmit={handleEditStudent} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Họ tên học sinh</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={editingStudent.name}
+                      onChange={e => setEditingStudent({...editingStudent, name: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all"
+                      placeholder="Nhập họ tên..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Số điện thoại (Phụ huynh)</label>
+                    <input 
+                      type="tel" 
+                      required
+                      value={editingStudent.phone}
+                      onChange={e => setEditingStudent({...editingStudent, phone: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all"
+                      placeholder="Nhập số điện thoại..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Email (Để đăng nhập làm bài)</label>
+                    <input 
+                      type="email" 
+                      required
+                      value={editingStudent.email}
+                      onChange={e => setEditingStudent({...editingStudent, email: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all"
+                      placeholder="Nhập email..."
+                    />
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95 mt-4"
+                  >
+                    Cập nhật thông tin
+                  </button>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         {showAssignModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
