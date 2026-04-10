@@ -29,6 +29,11 @@ export function stringifyError(err: any): string {
     }
   }
 
+  // Handle Firestore specific quota error
+  if (rawMessage.toLowerCase().includes("resource-exhausted") || rawMessage.toLowerCase().includes("quota exceeded")) {
+    return "Hệ thống đang tạm thời quá tải lượt truy cập (Firestore Quota Exceeded). Vui lòng quay lại vào ngày mai hoặc nâng cấp gói dịch vụ.";
+  }
+
   // Handle Gemini SDK specific error format if it's not a string but has these properties
   if (err.status === 429 || (err.error && err.error.code === 429)) {
     return "Bạn đã hết lượt sử dụng AI miễn phí trong hôm nay (Quota Exceeded). Vui lòng thử lại sau hoặc nâng cấp gói API.";

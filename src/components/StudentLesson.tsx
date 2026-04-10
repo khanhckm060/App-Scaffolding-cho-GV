@@ -88,16 +88,26 @@ export default function StudentLesson() {
   useEffect(() => {
     const fetchLesson = async () => {
       if (!lessonId) return;
-      const docRef = doc(db, 'lessons', lessonId);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data() as Lesson;
-        setLesson({ id: docSnap.id, ...data } as Lesson);
-        if (data.type === 'listening' && data.steps?.step2?.phrases) {
-          setDictationFeedback(new Array(data.steps.step2.phrases.length).fill([]));
+      try {
+        const docRef = doc(db, 'lessons', lessonId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data() as Lesson;
+          setLesson({ id: docSnap.id, ...data } as Lesson);
+          if (data.type === 'listening' && data.steps?.step2?.phrases) {
+            setDictationFeedback(new Array(data.steps.step2.phrases.length).fill([]));
+          }
         }
+      } catch (err: any) {
+        console.error("Error fetching lesson:", err);
+        if (err.code === 'resource-exhausted') {
+          setError("Hệ thống đang tạm thời quá tải lượt truy cập (Quota Exceeded). Vui lòng quay lại sau.");
+        } else {
+          setError("Không thể tải bài học. Vui lòng thử lại sau.");
+        }
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     fetchLesson();
   }, [lessonId]);

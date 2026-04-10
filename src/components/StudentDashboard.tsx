@@ -4,7 +4,7 @@ import { db, auth } from '../firebase';
 import { Assignment, Lesson, Result } from '../types';
 import { Link } from 'react-router-dom';
 import { 
-  BookOpen, Clock, CheckCircle2, AlertCircle, ChevronRight, 
+  BookOpen, Clock, CheckCircle2, AlertCircle, AlertTriangle, ChevronRight, 
   Search, GraduationCap, Calendar, Trophy, ArrowRight, LogIn, Mail
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -16,6 +16,7 @@ export default function StudentDashboard() {
   const [assignments, setAssignments] = useState<(Assignment & { lesson?: Lesson })[]>([]);
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(false);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
 
   useEffect(() => {
     const savedEmail = localStorage.getItem('studentEmail');
@@ -49,6 +50,11 @@ export default function StudentDashboard() {
         );
         
         setAssignments(assignmentsWithLessons);
+      }, (error) => {
+        console.error("Assignments listener error:", error);
+        if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded')) {
+          setQuotaExceeded(true);
+        }
       });
 
       // Fetch results for this email
@@ -60,6 +66,11 @@ export default function StudentDashboard() {
       
       const unsubResults = onSnapshot(qResults, (snapshot) => {
         setResults(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result)));
+      }, (error) => {
+        console.error("Results listener error:", error);
+        if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded')) {
+          setQuotaExceeded(true);
+        }
       });
 
       setLoading(false);
@@ -142,6 +153,30 @@ export default function StudentDashboard() {
 
   return (
     <div className="space-y-8">
+      {quotaExceeded && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-col md:flex-row items-start justify-between gap-6 text-amber-800 shadow-sm animate-in fade-in slide-in-from-top-2 mb-8">
+          <div className="flex items-start gap-4">
+            <div className="bg-amber-100 p-3 rounded-xl">
+              <AlertTriangle className="w-6 h-6 text-amber-600" />
+            </div>
+            <div>
+              <p className="font-bold text-lg mb-1">Hệ thống đang bảo trì hạn mức (Quota Exceeded)</p>
+              <p className="text-sm opacity-90 leading-relaxed">
+                Hệ thống đang tạm thời đạt giới hạn truy cập. Vui lòng liên hệ giáo viên để nâng cấp gói dịch vụ.
+                <br />
+                Giáo viên cần nâng cấp lên gói <span className="font-bold">Blaze</span> trong Firebase Console để tiếp tục.
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap w-full md:w-auto"
+          >
+            Thử lại ngay
+          </button>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">My Learning Dashboard</h1>
@@ -213,9 +248,9 @@ export default function StudentDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {todoAssignments.map((assign) => (
+            {todoAssignments.map((assign, i) => (
               <Link 
-                key={assign.id}
+                key={`todo-${assign.id || i}`}
                 to={`/lesson/${assign.lessonId}?assignmentId=${assign.id}`}
                 className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all group"
               >
@@ -273,10 +308,10 @@ export default function StudentDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {completedAssignments.map((assign) => {
+                {completedAssignments.map((assign, i) => {
                   const bestResult = results.find(r => r.lessonId === assign.lessonId);
                   return (
-                    <tr key={assign.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={`done-${assign.id || i}`} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
                           <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-bold border border-slate-200">

@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, deleteDoc, doc, orderBy, addDoc, onS
 import { db, auth } from '../firebase';
 import { Lesson, Class, Student, Assignment, Result } from '../types';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, Edit2, ExternalLink, BarChart2, Calendar, BookOpen, Users, GraduationCap, Send, ChevronRight, UserPlus, Mail, Phone, Clock, CheckCircle2, AlertCircle, Share2, Copy, Headphones, Mic, PenTool, X, Download, Loader2, FileSpreadsheet } from 'lucide-react';
+import { Plus, Trash2, Edit2, ExternalLink, BarChart2, Calendar, BookOpen, Users, GraduationCap, Send, ChevronRight, UserPlus, Mail, Phone, Clock, CheckCircle2, AlertCircle, AlertTriangle, Share2, Copy, Headphones, Mic, PenTool, X, Download, Loader2, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { downloadWorksheet } from '../lib/worksheet';
@@ -28,6 +28,7 @@ export default function TeacherDashboard() {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
   const [newStudent, setNewStudent] = useState({ name: '', phone: '', email: '' });
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [showEditStudent, setShowEditStudent] = useState(false);
@@ -59,29 +60,41 @@ export default function TeacherDashboard() {
       const uid = user.uid;
 
       // Real-time listeners
+      const handleListenerError = (name: string, error: any) => {
+        console.error(`${name} listener error:`, error);
+        if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded')) {
+          setQuotaExceeded(true);
+        }
+      };
+
       const unsubLessons = onSnapshot(
         query(collection(db, 'lessons'), where('teacherId', '==', uid), orderBy('createdAt', 'desc')),
-        (snapshot) => setLessons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lesson)))
+        (snapshot) => setLessons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lesson))),
+        (error) => handleListenerError("Lessons", error)
       );
 
       const unsubClasses = onSnapshot(
         query(collection(db, 'classes'), where('teacherId', '==', uid), orderBy('createdAt', 'desc')),
-        (snapshot) => setClasses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Class)))
+        (snapshot) => setClasses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Class))),
+        (error) => handleListenerError("Classes", error)
       );
 
       const unsubStudents = onSnapshot(
         query(collection(db, 'students'), where('teacherId', '==', uid)),
-        (snapshot) => setStudents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student)))
+        (snapshot) => setStudents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student))),
+        (error) => handleListenerError("Students", error)
       );
 
       const unsubAssignments = onSnapshot(
         query(collection(db, 'assignments'), where('teacherId', '==', uid), orderBy('createdAt', 'desc')),
-        (snapshot) => setAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment)))
+        (snapshot) => setAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment))),
+        (error) => handleListenerError("Assignments", error)
       );
 
       const unsubResults = onSnapshot(
         query(collection(db, 'results'), where('teacherId', '==', uid)),
-        (snapshot) => setResults(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result)))
+        (snapshot) => setResults(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result))),
+        (error) => handleListenerError("Results", error)
       );
 
       setLoading(false);
@@ -194,6 +207,7 @@ export default function TeacherDashboard() {
 
     const assignmentRef = await addDoc(collection(db, 'assignments'), {
       lessonId: selectedLessonForAssign.id,
+      lessonTitle: selectedLessonForAssign.title,
       classId: selectedClassId,
       className: selectedClass.name,
       studentEmails,
@@ -264,6 +278,42 @@ export default function TeacherDashboard() {
 
   return (
     <div className="space-y-8">
+      {quotaExceeded && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-col md:flex-row items-start justify-between gap-6 text-amber-800 shadow-sm animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-start gap-4">
+            <div className="bg-amber-100 p-3 rounded-xl">
+              <AlertTriangle className="w-6 h-6 text-amber-600" />
+            </div>
+            <div>
+              <p className="font-bold text-lg mb-1">Firebase Quota Exceeded (Hết hạn mức miễn phí)</p>
+              <p className="text-sm opacity-90 leading-relaxed">
+                Hệ thống đã đạt giới hạn 50,000 lượt đọc mỗi ngày của gói miễn phí (Spark). 
+                <br />
+                <strong className="text-amber-900">Quan trọng:</strong> Bạn cần vào <a href="https://console.firebase.google.com/project/gen-lang-client-0761160312/usage/details" target="_blank" rel="noopener noreferrer" className="underline font-bold hover:text-amber-600">Firebase Console</a>, nhấn nút <span className="bg-amber-200 px-1 rounded">Upgrade</span> và chọn gói <span className="font-bold">Blaze (Pay-as-you-go)</span>. 
+                <br />
+                Việc chỉ liên kết Billing Account ở Google Cloud là chưa đủ, bạn phải nâng cấp gói trong Firebase.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 w-full md:w-auto">
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap"
+            >
+              Thử lại ngay
+            </button>
+            <a 
+              href="https://console.firebase.google.com/project/gen-lang-client-0761160312/usage/details" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="px-6 py-3 bg-white border border-amber-200 text-amber-700 rounded-xl font-bold text-center hover:bg-amber-50 transition-all text-sm"
+            >
+              Mở Firebase Console
+            </a>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-900">Chào mừng, {auth.currentUser?.displayName}!</h2>
@@ -308,9 +358,9 @@ export default function TeacherDashboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                {classes.map(cls => (
+                {classes.map((cls, i) => (
                   <button
-                    key={cls.id}
+                    key={`class-${cls.id || i}`}
                     onClick={() => setSelectedClassId(cls.id!)}
                     className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${selectedClassId === cls.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-200 hover:bg-slate-50'}`}
                   >
@@ -445,10 +495,10 @@ export default function TeacherDashboard() {
                                 <td colSpan={4} className="py-8 text-center text-slate-400 italic">Chưa có học sinh trong lớp này.</td>
                               </tr>
                             ) : (
-                              classStudents.map(student => {
+                              classStudents.map((student, i) => {
                                 const lastResult = results.filter(r => r.studentEmail === student.email).sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0];
                                 return (
-                                  <tr key={student.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                  <tr key={`student-${student.id || i}`} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                                     <td className="py-4 px-4">
                                       <p className="font-bold text-slate-800">{student.name}</p>
                                     </td>
@@ -523,10 +573,10 @@ export default function TeacherDashboard() {
                                   return d.getMonth() === selectedMonth.getMonth() && d.getFullYear() === selectedMonth.getFullYear();
                                 })
                                 .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-                                .map(assignment => {
+                                .map((assignment, i) => {
                                   const lesson = lessons.find(l => l.id === assignment.lessonId);
                                   return (
-                                    <th key={assignment.id} className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center min-w-[120px]">
+                                    <th key={`header-assign-${assignment.id || i}`} className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center min-w-[120px]">
                                       <div className="truncate w-24 mx-auto" title={lesson?.title}>
                                         {lesson?.title || 'Lesson'}
                                       </div>
@@ -544,7 +594,7 @@ export default function TeacherDashboard() {
                                 <td colSpan={10} className="py-8 text-center text-slate-400 italic">Chưa có học sinh.</td>
                               </tr>
                             ) : (
-                              classStudents.map(student => {
+                              classStudents.map((student, i) => {
                                 const monthlyAssignments = classAssignments
                                   .filter(a => {
                                     const d = new Date(a.createdAt);
@@ -553,17 +603,17 @@ export default function TeacherDashboard() {
                                   .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
                                 return (
-                                  <tr key={student.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                  <tr key={`row-student-${student.id || i}`} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                                     <td className="py-4 px-4 sticky left-0 bg-white z-10 border-r border-slate-50">
                                       <p className="font-bold text-slate-800 text-sm truncate w-40">{student.name}</p>
                                     </td>
-                                    {monthlyAssignments.map(assignment => {
+                                    {monthlyAssignments.map((assignment, j) => {
                                       const result = results.find(r => r.studentEmail === student.email && r.assignmentId === assignment.id);
                                       const targetPercent = assignment.passingPercentage || 80;
                                       const targetScore = (targetPercent / 100) * 10;
                                       
                                       return (
-                                        <td key={assignment.id} className="py-4 px-4 text-center">
+                                        <td key={`cell-assign-${assignment.id || j}`} className="py-4 px-4 text-center">
                                           {result ? (
                                             <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl font-bold text-sm ${result.score >= targetScore ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                               {result.score}
@@ -602,13 +652,13 @@ export default function TeacherDashboard() {
                       {classAssignments.length === 0 ? (
                         <p className="text-center py-8 text-slate-400 italic">Chưa giao bài tập nào cho lớp này.</p>
                       ) : (
-                        classAssignments.map(assignment => {
+                        classAssignments.map((assignment, i) => {
                           const lesson = lessons.find(l => l.id === assignment.lessonId);
                           const completionCount = results.filter(r => r.assignmentId === assignment.id).length;
                           const isExpired = new Date(assignment.deadline) < new Date();
 
                           return (
-                            <div key={assignment.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50">
+                            <div key={`list-assign-${assignment.id || i}`} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50">
                               <div className="flex items-center space-x-4">
                                 <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-indigo-600 shadow-sm">
                                   <BookOpen className="w-5 h-5" />
@@ -700,7 +750,7 @@ export default function TeacherDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {lessons.map((lesson, i) => (
                 <motion.div
-                  key={lesson.id}
+                  key={`lesson-${lesson.id || i}`}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05 }}
@@ -975,8 +1025,8 @@ export default function TeacherDashboard() {
                   {lessons.length === 0 ? (
                     <p className="text-center py-8 text-slate-400 italic">Bạn chưa tạo bài tập nào.</p>
                   ) : (
-                    lessons.map(lesson => (
-                      <div key={lesson.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 transition-all group">
+                    lessons.map((lesson, i) => (
+                      <div key={`assign-lesson-${lesson.id || i}`} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 transition-all group">
                         <div className="flex items-center space-x-4">
                           <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                             <BookOpen className="w-5 h-5" />

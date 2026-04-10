@@ -59,7 +59,7 @@ Chúc bạn học tốt.`;
   }
 });
 
-// Background Task: Check for reminders (runs every 5 minutes)
+// Background Task: Check for reminders (runs every 30 minutes to save quota)
 setInterval(async () => {
   console.log("[REMINDER TASK] Checking for upcoming deadlines...");
   const now = new Date();
@@ -83,10 +83,13 @@ setInterval(async () => {
       // Check if we already sent a reminder for this assignment
       if (assignment.reminderSent) continue;
 
-      // Get lesson title
-      const lessonRef = doc(db, "lessons", assignment.lessonId);
-      const lessonSnap = await getDoc(lessonRef);
-      const lessonTitle = lessonSnap.exists() ? lessonSnap.data()?.title : "Bài tập";
+      // Get lesson title (use cached title if available)
+      let lessonTitle = assignment.lessonTitle;
+      if (!lessonTitle) {
+        const lessonRef = doc(db, "lessons", assignment.lessonId);
+        const lessonSnap = await getDoc(lessonRef);
+        lessonTitle = lessonSnap.exists() ? lessonSnap.data()?.title : "Bài tập";
+      }
 
       // For each student, check if they completed it with required score
       const targetPercent = assignment.passingPercentage || 80;
@@ -123,10 +126,14 @@ Hãy nhanh chóng hoàn thành bài tập để đảm bảo tiến độ học 
         reminderSent: true
       });
     }
-  } catch (error) {
-    console.error("Error in reminder task:", error);
+  } catch (error: any) {
+    if (error.code === 'resource-exhausted') {
+      console.error("[REMINDER TASK] Firestore Quota Exceeded. Skipping this run.");
+    } else {
+      console.error("Error in reminder task:", error);
+    }
   }
-}, 5 * 60 * 1000); // 5 minutes
+}, 30 * 60 * 1000); // 30 minutes
 
 async function startServer() {
   // Vite middleware for development
