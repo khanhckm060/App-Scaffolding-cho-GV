@@ -503,10 +503,10 @@ export default function TeacherDashboard() {
                         <table className="w-full text-left border-collapse">
                           <thead>
                             <tr className="border-b border-slate-100">
-                              <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Họ tên</th>
-                              <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Liên hệ</th>
-                              <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Kết quả gần nhất</th>
-                              <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Thao tác</th>
+                              <th key="th-name" className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Họ tên</th>
+                              <th key="th-contact" className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Liên hệ</th>
+                              <th key="th-result" className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Kết quả gần nhất</th>
+                              <th key="th-action" className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Thao tác</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -647,7 +647,7 @@ export default function TeacherDashboard() {
                                       );
                                     })}
                                     {monthlyAssignments.length === 0 && (
-                                      <td className="py-8 text-center text-slate-300 text-xs italic" colSpan={1}>
+                                      <td key="no-assignments-cell" className="py-8 text-center text-slate-300 text-xs italic" colSpan={1}>
                                         Không có bài tập trong tháng này
                                       </td>
                                     )}

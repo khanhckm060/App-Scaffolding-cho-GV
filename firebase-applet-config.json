@@ -1,10 +1,9 @@
 {
-  "projectId": "english-scaffolding-app",
-  "appId": "1:490079878681:web:dd2605fac62901a8e1f488",
-  "apiKey": "AIzaSyCGo1MTyWtkwAUQdo0kwbObgUrLsZZr1h8",
-  "authDomain": "english-scaffolding-app.firebaseapp.com",
-  "firestoreDatabaseId": "(default)",
-  "storageBucket": "english-scaffolding-app.firebasestorage.app",
-  "messagingSenderId": "490079878681",
-  "measurementId": "G-991FTJS7LV"
+  "projectId": "gen-lang-client-0761160312",
+  "appId": "1:711973278359:web:5aa1a61a48fd6e4d37cfd2",
+  "apiKey": "AIzaSyCl92OP15ZKbExfjGVdLi418EWgYelPeXg",
+  "authDomain": "gen-lang-client-0761160312.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-d3808673-c730-4782-b940-814de08e5b29",
+  "storageBucket": "gen-lang-client-0761160312.firebasestorage.app",
+  "messagingSenderId": "711973278359"
 }

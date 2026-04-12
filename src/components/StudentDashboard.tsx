@@ -326,10 +326,10 @@ export default function StudentDashboard() {
             <table className="w-full text-left">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Exercise</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Class</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">Best Score</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Action</th>
+                  <th key="th-exercise" className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Exercise</th>
+                  <th key="th-class" className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Class</th>
+                  <th key="th-score" className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">Best Score</th>
+                  <th key="th-action" className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

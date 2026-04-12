@@ -95,38 +95,36 @@ service cloud.firestore {
     // ===============================================================
 
     match /lessons/{lessonId} {
-      // Students need to read lessons to do exercises
       allow read: if true;
       allow create: if isAuthenticated() && isValidLesson(request.resource.data) && isOwner(request.resource.data.teacherId);
-      allow update, delete: if isAuthenticated() && isOwner(resource.data.teacherId);
+      allow update, delete: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
     }
 
     match /results/{resultId} {
-      // Teachers read results for their lessons. Students read their own results.
       allow get: if true;
-      allow list: if isAuthenticated() || (request.query.limit <= 20); 
+      allow list: if isAuthenticated() && (isOwner(resource.data.teacherId) || resource.data.studentEmail == request.auth.token.email || isAdmin()) || (request.query.limit <= 20); 
       
       allow create: if isValidResult(request.resource.data) && 
                       exists(/databases/$(database)/documents/lessons/$(request.resource.data.lessonId));
       
-      // Only teachers or admins can delete results
-      allow update, delete: if isAdmin() || (isAuthenticated() && (isOwner(resource.data.teacherId) || isOwner(request.resource.data.teacherId)));
+      allow update, delete: if isAdmin() || (isAuthenticated() && isOwner(resource.data.teacherId));
     }
 
     match /classes/{classId} {
-      allow read, write: if isAuthenticated() && (isOwner(resource.data.teacherId) || isOwner(request.resource.data.teacherId) || isAdmin());
+      allow read: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
       allow create: if isAuthenticated() && isValidClass(request.resource.data) && isOwner(request.resource.data.teacherId);
+      allow update, delete: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
     }
 
     match /students/{studentId} {
-      allow read, write: if isAuthenticated() && (isOwner(resource.data.teacherId) || isOwner(request.resource.data.teacherId) || isAdmin());
+      allow read: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
       allow create: if isAuthenticated() && isValidStudent(request.resource.data) && isOwner(request.resource.data.teacherId);
+      allow update, delete: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
     }
 
     match /assignments/{assignmentId} {
-      // Students need to find assignments by email
       allow get: if true;
-      allow list: if isAuthenticated() || (request.query.limit <= 20);
+      allow list: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin()) || (request.query.limit <= 20);
       
       allow create: if isAuthenticated() && isValidAssignment(request.resource.data) && isOwner(request.resource.data.teacherId);
       allow update, delete: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
