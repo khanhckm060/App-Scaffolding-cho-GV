@@ -34,7 +34,14 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && 
-        (request.auth.token.email == "khanhckm060@gmail.com" && request.auth.token.email_verified == true);
+        (request.auth.token.email in [
+          "khanhckm060@gmail.com", 
+          "ntquy2102@gmail.com", 
+          "hanhnguyen.smiley@gmail.com", 
+          "doanthu3421@gmail.com", 
+          "nguyenthithanhbinh1611@gmail.com", 
+          "thuhanguyen762000@gmail.com"
+        ] && request.auth.token.email_verified == true);
     }
 
     function isOwner(teacherId) {
@@ -96,8 +103,8 @@ service cloud.firestore {
 
     match /lessons/{lessonId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isValidLesson(request.resource.data) && isOwner(request.resource.data.teacherId);
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
+      allow create: if isAdmin() && isValidLesson(request.resource.data) && isOwner(request.resource.data.teacherId);
+      allow update, delete: if isAdmin() && isOwner(resource.data.teacherId);
     }
 
     match /results/{resultId} {
@@ -107,27 +114,27 @@ service cloud.firestore {
       allow create: if isValidResult(request.resource.data) && 
                       exists(/databases/$(database)/documents/lessons/$(request.resource.data.lessonId));
       
-      allow update, delete: if isAdmin() || (isAuthenticated() && isOwner(resource.data.teacherId));
+      allow update, delete: if isAdmin();
     }
 
     match /classes/{classId} {
       allow read: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
-      allow create: if isAuthenticated() && isValidClass(request.resource.data) && isOwner(request.resource.data.teacherId);
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
+      allow create: if isAdmin() && isValidClass(request.resource.data) && isOwner(request.resource.data.teacherId);
+      allow update, delete: if isAdmin() && isOwner(resource.data.teacherId);
     }
 
     match /students/{studentId} {
       allow read: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
-      allow create: if isAuthenticated() && isValidStudent(request.resource.data) && isOwner(request.resource.data.teacherId);
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
+      allow create: if isAdmin() && isValidStudent(request.resource.data) && isOwner(request.resource.data.teacherId);
+      allow update, delete: if isAdmin() && isOwner(resource.data.teacherId);
     }
 
     match /assignments/{assignmentId} {
       allow get: if true;
       allow list: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin()) || (request.query.limit <= 20);
       
-      allow create: if isAuthenticated() && isValidAssignment(request.resource.data) && isOwner(request.resource.data.teacherId);
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
+      allow create: if isAdmin() && isValidAssignment(request.resource.data) && isOwner(request.resource.data.teacherId);
+      allow update, delete: if isAdmin() && isOwner(resource.data.teacherId);
     }
 
     // Default deny
