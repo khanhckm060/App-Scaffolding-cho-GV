@@ -56,19 +56,33 @@ export default function TeacherDashboard() {
     setRefreshing(true);
     setQuotaExceeded(false);
     try {
-      const [lessonsSnap, classesSnap, studentsSnap, assignmentsSnap, resultsSnap] = await Promise.all([
+      // Fetch core data (lessons, classes, students, assignments)
+      const [lessonsSnap, classesSnap, studentsSnap, assignmentsSnap] = await Promise.all([
         getDocs(query(collection(db, 'lessons'), where('teacherId', '==', uid), orderBy('createdAt', 'desc'))),
         getDocs(query(collection(db, 'classes'), where('teacherId', '==', uid), orderBy('createdAt', 'desc'))),
         getDocs(query(collection(db, 'students'), where('teacherId', '==', uid))),
-        getDocs(query(collection(db, 'assignments'), where('teacherId', '==', uid), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'results'), where('teacherId', '==', uid)))
+        getDocs(query(collection(db, 'assignments'), where('teacherId', '==', uid), orderBy('createdAt', 'desc')))
       ]);
 
       setLessons(lessonsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lesson)));
       setClasses(classesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Class)));
       setStudents(studentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student)));
       setAssignments(assignmentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment)));
+
+      // Fetch only recent results (last 30 days) to save quota
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const resultsQuery = query(
+        collection(db, 'results'), 
+        where('teacherId', '==', uid),
+        where('completedAt', '>=', thirtyDaysAgo.toISOString()),
+        orderBy('completedAt', 'desc')
+      );
+      
+      const resultsSnap = await getDocs(resultsQuery);
       setResults(resultsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result)));
+      
     } catch (error: any) {
       console.error("Error fetching data:", error);
       setLastError(error.message || String(error));

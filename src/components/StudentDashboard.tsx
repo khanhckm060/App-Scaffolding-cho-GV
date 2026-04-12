@@ -44,10 +44,14 @@ export default function StudentDashboard() {
         const assignmentSnap = await getDocs(qAssignments);
         const assignmentData = assignmentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment));
         
-        // Fetch results for this email
+        // Fetch results for this email (last 30 days to save quota)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
         const qResults = query(
           collection(db, 'results'),
           where('studentEmail', '==', email),
+          where('completedAt', '>=', thirtyDaysAgo.toISOString()),
           orderBy('completedAt', 'desc')
         );
         const resultSnap = await getDocs(qResults);

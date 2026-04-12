@@ -56,16 +56,20 @@
     },
     "Assignment": {
       "title": "Assignment",
-      "description": "A lesson assigned to a class.",
+      "description": "A lesson assigned to a class or group of students.",
       "type": "object",
       "properties": {
         "lessonId": { "type": "string", "description": "ID of the lesson" },
         "classId": { "type": "string", "description": "ID of the class" },
+        "className": { "type": "string", "description": "Name of the class" },
+        "studentEmails": { "type": "array", "items": { "type": "string" }, "description": "List of student emails assigned" },
         "teacherId": { "type": "string", "description": "UID of the teacher" },
         "deadline": { "type": "string", "format": "date-time", "description": "Deadline for the assignment" },
-        "createdAt": { "type": "string", "format": "date-time", "description": "When the assignment was created" }
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the assignment was created" },
+        "lessonTitle": { "type": "string", "description": "Title of the lesson for display" },
+        "passingPercentage": { "type": "number", "description": "Required score percentage to pass" }
       },
-      "required": ["lessonId", "classId", "teacherId", "deadline", "createdAt"]
+      "required": ["lessonId", "classId", "teacherId", "deadline", "createdAt", "studentEmails"]
     }
   },
   "firestore": {

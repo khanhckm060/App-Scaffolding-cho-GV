@@ -5,10 +5,12 @@ import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// Use initializeFirestore with long polling to avoid gRPC stream issues in some environments
+// Initialize Firestore
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
-}, firebaseConfig.firestoreDatabaseId);
+}, firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)' 
+   ? firebaseConfig.firestoreDatabaseId 
+   : undefined);
 
 export const auth = getAuth(app);
 
@@ -66,9 +68,14 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration. ");
+    console.log("Firebase connection successful!");
+  } catch (error: any) {
+    if (error.message?.includes('the client is offline')) {
+      console.error("Firestore Error: Không thể kết nối. Vui lòng đảm bảo bạn đã nhấn 'Create Database' trong Firebase Console và chọn đúng Region.");
+    } else if (error.code === 'permission-denied') {
+      console.error("Firestore Error: Quyền truy cập bị từ chối. Vui lòng kiểm tra lại Security Rules.");
+    } else {
+      console.error("Firestore Connection Test Error:", error.message);
     }
   }
 }
