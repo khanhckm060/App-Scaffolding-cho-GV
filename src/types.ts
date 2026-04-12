@@ -41,6 +41,53 @@ export interface ScaffoldingSteps {
   };
 }
 
+export interface WritingSteps {
+  step1: {
+    vocabulary: VocabularyItem[];
+  };
+  step2: {
+    questions: {
+      question: string;
+      options: string[];
+      answer: number;
+      explanation: string;
+    }[];
+  };
+  step3: {
+    paragraphs: {
+      text: string;
+      errors: {
+        original: string;
+        correction: string;
+        explanation: string;
+      }[];
+    }[];
+  };
+  step4: {
+    questions: {
+      vietnamese: string;
+      english: string;
+      explanation: string;
+    }[];
+  };
+  step5: {
+    paragraphs: {
+      topic: string;
+      vietnamese: {
+        topicSentence: string;
+        supportingSentence: string;
+        example: string;
+      };
+      english: {
+        topicSentence: string;
+        supportingSentence: string;
+        example: string;
+      };
+      explanation: string;
+    }[];
+  };
+}
+
 export type LessonLevel = 'A0' | 'A1' | 'A2' | 'B1' | 'B2' | 'C1';
 
 export const LEVEL_DESCRIPTIONS: Record<LessonLevel, string> = {
@@ -67,6 +114,7 @@ export interface Lesson {
   audioEnd?: number;
   vocabulary: VocabularyItem[];
   steps?: ScaffoldingSteps; // For listening
+  writingSteps?: WritingSteps; // For writing
   readingQuestions?: ReadingQuestion[]; // For reading (legacy or flat)
   sections?: ExamSection[]; // For structured exams
   teacherId: string;
@@ -100,9 +148,19 @@ export interface Result {
   details: {
     step1?: boolean;
     step2?: boolean;
-    step3?: number; // number of correct blanks
-    step4?: number; // number of correct MCQs
+    step2_correct?: number;
+    step3_correct?: number;
+    step4_correct?: number;
+    step5_correct?: number;
+    step6_correct?: number;
+    step3?: number; // legacy
+    step4?: number; // legacy
     reading?: number; // number of correct reading questions
+    total_reading?: number;
+    writing_step2_correct?: number;
+    writing_step3_correct?: number;
+    writing_step4_correct?: number;
+    writing_step5_correct?: number;
   };
   completedAt: string;
 }

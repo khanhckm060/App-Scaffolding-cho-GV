@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, getDocs, deleteDoc, doc, orderBy, addDoc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, deleteDoc, doc, orderBy, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Lesson, Class, Student, Assignment, Result } from '../types';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -29,6 +29,8 @@ export default function TeacherDashboard() {
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [importing, setImporting] = useState(false);
   const [quotaExceeded, setQuotaExceeded] = useState(false);
+  const [lastError, setLastError] = useState<string>('');
+  const [refreshing, setRefreshing] = useState(false);
   const [newStudent, setNewStudent] = useState({ name: '', phone: '', email: '' });
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [showEditStudent, setShowEditStudent] = useState(false);
@@ -50,62 +52,42 @@ export default function TeacherDashboard() {
     }
   }, [searchParams]);
 
+  const fetchData = async (uid: string) => {
+    setRefreshing(true);
+    setQuotaExceeded(false);
+    try {
+      const [lessonsSnap, classesSnap, studentsSnap, assignmentsSnap, resultsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'lessons'), where('teacherId', '==', uid), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'classes'), where('teacherId', '==', uid), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'students'), where('teacherId', '==', uid))),
+        getDocs(query(collection(db, 'assignments'), where('teacherId', '==', uid), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'results'), where('teacherId', '==', uid)))
+      ]);
+
+      setLessons(lessonsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lesson)));
+      setClasses(classesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Class)));
+      setStudents(studentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student)));
+      setAssignments(assignmentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment)));
+      setResults(resultsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result)));
+    } catch (error: any) {
+      console.error("Error fetching data:", error);
+      setLastError(error.message || String(error));
+      if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded')) {
+        setQuotaExceeded(true);
+      }
+    } finally {
+      setRefreshing(false);
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      if (!user) {
+      if (user) {
+        fetchData(user.uid);
+      } else {
         setLoading(false);
-        return;
       }
-      
-      const uid = user.uid;
-
-      // Real-time listeners
-      const handleListenerError = (name: string, error: any) => {
-        console.error(`${name} listener error:`, error);
-        if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded')) {
-          setQuotaExceeded(true);
-        }
-      };
-
-      const unsubLessons = onSnapshot(
-        query(collection(db, 'lessons'), where('teacherId', '==', uid), orderBy('createdAt', 'desc')),
-        (snapshot) => setLessons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lesson))),
-        (error) => handleListenerError("Lessons", error)
-      );
-
-      const unsubClasses = onSnapshot(
-        query(collection(db, 'classes'), where('teacherId', '==', uid), orderBy('createdAt', 'desc')),
-        (snapshot) => setClasses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Class))),
-        (error) => handleListenerError("Classes", error)
-      );
-
-      const unsubStudents = onSnapshot(
-        query(collection(db, 'students'), where('teacherId', '==', uid)),
-        (snapshot) => setStudents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student))),
-        (error) => handleListenerError("Students", error)
-      );
-
-      const unsubAssignments = onSnapshot(
-        query(collection(db, 'assignments'), where('teacherId', '==', uid), orderBy('createdAt', 'desc')),
-        (snapshot) => setAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment))),
-        (error) => handleListenerError("Assignments", error)
-      );
-
-      const unsubResults = onSnapshot(
-        query(collection(db, 'results'), where('teacherId', '==', uid)),
-        (snapshot) => setResults(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result))),
-        (error) => handleListenerError("Results", error)
-      );
-
-      setLoading(false);
-
-      return () => {
-        unsubLessons();
-        unsubClasses();
-        unsubStudents();
-        unsubAssignments();
-        unsubResults();
-      };
     });
 
     return () => unsubscribeAuth();
@@ -121,6 +103,7 @@ export default function TeacherDashboard() {
     });
     setNewClassName('');
     setShowAddClass(false);
+    fetchData(auth.currentUser.uid);
   };
 
   const handleAddStudent = async (e: React.FormEvent) => {
@@ -133,6 +116,7 @@ export default function TeacherDashboard() {
     });
     setNewStudent({ name: '', phone: '', email: '' });
     setShowAddStudent(false);
+    fetchData(auth.currentUser.uid);
   };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,6 +168,7 @@ export default function TeacherDashboard() {
           const promises = studentsToImport.map(s => addDoc(collection(db, 'students'), s));
           await Promise.all(promises);
           alert(`Đã nhập thành công ${studentsToImport.length} học sinh.`);
+          fetchData(auth.currentUser?.uid!);
         } else {
           alert('Không tìm thấy dữ liệu học sinh hợp lệ trong file.');
         }
@@ -237,23 +222,27 @@ export default function TeacherDashboard() {
     
     setShowAssignModal(false);
     setSelectedLessonForAssign(null);
+    fetchData(auth.currentUser.uid);
     alert("Bài tập đã được giao! Thông báo đã được gửi tới email học viên (Simulated).");
   };
 
   const deleteLesson = async (id: string) => {
     if (!confirm("Bạn có chắc chắn muốn xóa bài tập này?")) return;
     await deleteDoc(doc(db, 'lessons', id));
+    fetchData(auth.currentUser?.uid!);
   };
 
   const deleteClass = async (id: string) => {
     if (!confirm("Xóa lớp học sẽ xóa toàn bộ dữ liệu liên quan. Tiếp tục?")) return;
     await deleteDoc(doc(db, 'classes', id));
     if (selectedClassId === id) setSelectedClassId(null);
+    fetchData(auth.currentUser?.uid!);
   };
 
   const deleteStudent = async (id: string) => {
     if (!confirm("Bạn có chắc chắn muốn xóa học sinh này khỏi danh sách lớp?")) return;
     await deleteDoc(doc(db, 'students', id));
+    fetchData(auth.currentUser?.uid!);
   };
 
   const handleEditStudent = async (e: React.FormEvent) => {
@@ -268,6 +257,7 @@ export default function TeacherDashboard() {
     
     setEditingStudent(null);
     setShowEditStudent(false);
+    fetchData(auth.currentUser?.uid!);
   };
 
   if (loading) return <div className="text-center py-12">Đang tải dữ liệu...</div>;
@@ -284,15 +274,19 @@ export default function TeacherDashboard() {
             <div className="bg-amber-100 p-3 rounded-xl">
               <AlertTriangle className="w-6 h-6 text-amber-600" />
             </div>
-            <div>
-              <p className="font-bold text-lg mb-1">Firebase Quota Exceeded (Hết hạn mức miễn phí)</p>
+            <div className="flex-1">
+              <p className="font-bold text-lg mb-1">Thông báo từ Firebase (Quota/Limit)</p>
               <p className="text-sm opacity-90 leading-relaxed">
-                Hệ thống đã đạt giới hạn 50,000 lượt đọc mỗi ngày của gói miễn phí (Spark). 
+                Hệ thống ghi nhận một vấn đề về hạn mức truy cập dữ liệu. 
                 <br />
-                <strong className="text-amber-900">Quan trọng:</strong> Bạn cần vào <a href="https://console.firebase.google.com/project/gen-lang-client-0761160312/usage/details" target="_blank" rel="noopener noreferrer" className="underline font-bold hover:text-amber-600">Firebase Console</a>, nhấn nút <span className="bg-amber-200 px-1 rounded">Upgrade</span> và chọn gói <span className="font-bold">Blaze (Pay-as-you-go)</span>. 
-                <br />
-                Việc chỉ liên kết Billing Account ở Google Cloud là chưa đủ, bạn phải nâng cấp gói trong Firebase.
+                <span className="font-medium text-amber-900">Trạng thái:</span> Bạn đã nâng cấp gói <span className="font-bold">Blaze</span>, điều này rất tốt. Lỗi này có thể do hệ thống Firebase đang trong quá trình cập nhật hạn mức mới (thường mất 30-60 phút) hoặc do kết nối mạng tạm thời.
               </p>
+              {lastError && (
+                <div className="mt-3 p-3 bg-amber-900/5 rounded-xl border border-amber-200/50">
+                  <p className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-1">Chi tiết lỗi kỹ thuật:</p>
+                  <code className="text-xs font-mono break-all opacity-80">{lastError}</code>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex flex-col gap-2 w-full md:w-auto">
@@ -300,16 +294,17 @@ export default function TeacherDashboard() {
               onClick={() => window.location.reload()}
               className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap"
             >
-              Thử lại ngay
+              Tải lại trang
             </button>
-            <a 
-              href="https://console.firebase.google.com/project/gen-lang-client-0761160312/usage/details" 
-              target="_blank" 
-              rel="noopener noreferrer"
+            <button 
+              onClick={() => {
+                setQuotaExceeded(false);
+                setLastError('');
+              }}
               className="px-6 py-3 bg-white border border-amber-200 text-amber-700 rounded-xl font-bold text-center hover:bg-amber-50 transition-all text-sm"
             >
-              Mở Firebase Console
-            </a>
+              Bỏ qua thông báo
+            </button>
           </div>
         </div>
       )}
@@ -320,6 +315,17 @@ export default function TeacherDashboard() {
           <p className="text-slate-500">Quản lý lớp học và các bài tập của bạn.</p>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-xl">
+          <button 
+            onClick={() => {
+              if (auth.currentUser) fetchData(auth.currentUser.uid);
+            }}
+            disabled={refreshing}
+            className="p-2 text-slate-500 hover:text-indigo-600 transition-all disabled:opacity-50"
+            title="Làm mới dữ liệu"
+          >
+            <Loader2 className={cn("w-5 h-5", refreshing && "animate-spin")} />
+          </button>
+          <div className="w-px h-6 bg-slate-200 mx-1 self-center" />
           <button 
             onClick={() => setActiveTab('classes')}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'classes' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
@@ -1235,15 +1241,16 @@ export default function TeacherDashboard() {
                   <span className="text-xl font-bold text-slate-900">Nói</span>
                 </button>
 
-                <button 
-                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed"
-                  title="Coming soon"
+                <Link 
+                  to="/teacher/new/writing"
+                  onClick={() => setShowCreateTypeModal(false)}
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
                 >
                   <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
                     <PenTool className="w-8 h-8 text-indigo-600 group-hover:text-white" />
                   </div>
                   <span className="text-xl font-bold text-slate-900">Viết</span>
-                </button>
+                </Link>
               </div>
             </motion.div>
           </div>

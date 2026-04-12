@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Assignment, Lesson, Result } from '../types';
 import { Link } from 'react-router-dom';
@@ -17,79 +17,83 @@ export default function StudentDashboard() {
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(false);
   const [quotaExceeded, setQuotaExceeded] = useState(false);
+  const [lastError, setLastError] = useState<string>('');
 
   useEffect(() => {
     const savedEmail = localStorage.getItem('studentEmail');
     if (savedEmail) {
       setEmail(savedEmail);
       setIsLoggedIn(true);
-      fetchData(savedEmail);
     }
   }, []);
 
-  const fetchData = async (studentEmail: string) => {
-    setLoading(true);
-    try {
-      // Fetch assignments for this email
-      const qAssignments = query(
-        collection(db, 'assignments'),
-        where('studentEmails', 'array-contains', studentEmail),
-        orderBy('createdAt', 'desc')
-      );
-      
-      const unsubAssignments = onSnapshot(qAssignments, async (snapshot) => {
-        const assignmentData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment));
-        
-        // Fetch lesson details for each assignment
-        const assignmentsWithLessons = await Promise.all(
-          assignmentData.map(async (assign) => {
-            const lessonDoc = await getDocs(query(collection(db, 'lessons'), where('__name__', '==', assign.lessonId)));
-            const lesson = lessonDoc.docs[0]?.data() as Lesson;
-            return { ...assign, lesson } as Assignment & { lesson?: Lesson };
-          })
+  useEffect(() => {
+    if (!isLoggedIn || !email) return;
+
+    const fetchData = async () => {
+      setLoading(true);
+      setQuotaExceeded(false);
+      try {
+        // Fetch assignments for this email
+        const qAssignments = query(
+          collection(db, 'assignments'),
+          where('studentEmails', 'array-contains', email),
+          orderBy('createdAt', 'desc')
         );
         
+        const assignmentSnap = await getDocs(qAssignments);
+        const assignmentData = assignmentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment));
+        
+        // Fetch results for this email
+        const qResults = query(
+          collection(db, 'results'),
+          where('studentEmail', '==', email),
+          orderBy('completedAt', 'desc')
+        );
+        const resultSnap = await getDocs(qResults);
+        setResults(resultSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result)));
+
+        // Fetch lesson details for each assignment
+        // Collect unique lesson IDs
+        const lessonIds = Array.from(new Set(assignmentData.map(a => a.lessonId)));
+        
+        // Fetch lessons in batches of 30 (Firestore limit for 'in' query)
+        const lessonsMap: Record<string, Lesson> = {};
+        const batchSize = 30;
+        for (let i = 0; i < lessonIds.length; i += batchSize) {
+          const batch = lessonIds.slice(i, i + batchSize);
+          const qLessons = query(collection(db, 'lessons'), where('__name__', 'in', batch));
+          const lessonSnap = await getDocs(qLessons);
+          lessonSnap.docs.forEach(doc => {
+            lessonsMap[doc.id] = { id: doc.id, ...doc.data() } as Lesson;
+          });
+        }
+
+        const assignmentsWithLessons = assignmentData.map(assign => ({
+          ...assign,
+          lesson: lessonsMap[assign.lessonId]
+        }));
+        
         setAssignments(assignmentsWithLessons);
-      }, (error) => {
-        console.error("Assignments listener error:", error);
+      } catch (error: any) {
+        console.error("Error fetching student data:", error);
+        setLastError(error.message || String(error));
         if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded')) {
           setQuotaExceeded(true);
         }
-      });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      // Fetch results for this email
-      const qResults = query(
-        collection(db, 'results'),
-        where('studentEmail', '==', studentEmail),
-        orderBy('completedAt', 'desc')
-      );
-      
-      const unsubResults = onSnapshot(qResults, (snapshot) => {
-        setResults(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result)));
-      }, (error) => {
-        console.error("Results listener error:", error);
-        if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded')) {
-          setQuotaExceeded(true);
-        }
-      });
-
-      setLoading(false);
-      return () => {
-        unsubAssignments();
-        unsubResults();
-      };
-    } catch (error) {
-      console.error("Error fetching student data:", error);
-      setLoading(false);
-    }
-  };
+    fetchData();
+  }, [isLoggedIn, email]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (email) {
       localStorage.setItem('studentEmail', email);
       setIsLoggedIn(true);
-      fetchData(email);
     }
   };
 
@@ -159,21 +163,38 @@ export default function StudentDashboard() {
             <div className="bg-amber-100 p-3 rounded-xl">
               <AlertTriangle className="w-6 h-6 text-amber-600" />
             </div>
-            <div>
-              <p className="font-bold text-lg mb-1">Hệ thống đang bảo trì hạn mức (Quota Exceeded)</p>
+            <div className="flex-1">
+              <p className="font-bold text-lg mb-1">Thông báo từ Firebase (Quota/Limit)</p>
               <p className="text-sm opacity-90 leading-relaxed">
-                Hệ thống đang tạm thời đạt giới hạn truy cập. Vui lòng liên hệ giáo viên để nâng cấp gói dịch vụ.
+                Hệ thống ghi nhận một vấn đề về hạn mức truy cập dữ liệu. 
                 <br />
-                Giáo viên cần nâng cấp lên gói <span className="font-bold">Blaze</span> trong Firebase Console để tiếp tục.
+                Nếu giáo viên đã nâng cấp gói <span className="font-bold">Blaze</span>, vui lòng đợi hệ thống cập nhật hoặc thử lại sau ít phút.
               </p>
+              {lastError && (
+                <div className="mt-3 p-3 bg-amber-900/5 rounded-xl border border-amber-200/50">
+                  <p className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-1">Chi tiết lỗi kỹ thuật:</p>
+                  <code className="text-xs font-mono break-all opacity-80">{lastError}</code>
+                </div>
+              )}
             </div>
           </div>
-          <button 
-            onClick={() => window.location.reload()}
-            className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap w-full md:w-auto"
-          >
-            Thử lại ngay
-          </button>
+          <div className="flex flex-col gap-2 w-full md:w-auto">
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap"
+            >
+              Tải lại trang
+            </button>
+            <button 
+              onClick={() => {
+                setQuotaExceeded(false);
+                setLastError('');
+              }}
+              className="px-6 py-3 bg-white border border-amber-200 text-amber-700 rounded-xl font-bold text-center hover:bg-amber-50 transition-all text-sm"
+            >
+              Bỏ qua thông báo
+            </button>
+          </div>
         </div>
       )}
 

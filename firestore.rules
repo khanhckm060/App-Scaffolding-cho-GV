@@ -8,9 +8,12 @@ service cloud.firestore {
     // Collection: lessons
     // Fields:
     //   - title: string (required, 1-200 chars)
+    //   - type: string (required, enum: listening, reading, writing)
+    //   - level: string (required, enum: A0-C1)
     //   - script: string (optional, for listening)
     //   - vocabulary: list (required, < 50 items)
     //   - steps: map (optional, for listening)
+    //   - writingSteps: map (optional, for writing)
     //   - passage: string (optional, for reading)
     //   - passages: list (optional, for reading)
     //   - readingQuestions: list (optional, for reading)
@@ -84,23 +87,30 @@ service cloud.firestore {
       let common = data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
                    data.teacherId == request.auth.uid &&
                    isValidDateString(data.createdAt) &&
-                   data.type in ['listening', 'reading'] &&
+                   data.type in ['listening', 'reading', 'writing', 'speaking'] &&
                    data.level in ['A0', 'A1', 'A2', 'B1', 'B2', 'C1'] &&
                    (!('passingPercentage' in data) || (data.passingPercentage is number && data.passingPercentage >= 0 && data.passingPercentage <= 100));
       
       let listening = data.type == 'listening' &&
-                      data.script is string && data.script.size() > 0 && data.script.size() < 10000 &&
-                      data.vocabulary is list && data.vocabulary.size() < 50 &&
+                      data.script is string && data.script.size() > 0 && data.script.size() < 20000 &&
+                      data.vocabulary is list && data.vocabulary.size() < 100 &&
                       data.steps is map;
                       
       let reading = data.type == 'reading' &&
-                    data.vocabulary is list && data.vocabulary.size() < 50 &&
+                    data.vocabulary is list && data.vocabulary.size() < 100 &&
                     (
                       (data.passage is string && data.passage.size() > 0 && data.readingQuestions is list) ||
                       (data.sections is list && data.sections.size() > 0)
                     );
+
+      let writing = data.type == 'writing' &&
+                    data.vocabulary is list && data.vocabulary.size() < 100 &&
+                    data.writingSteps is map;
+
+      let speaking = data.type == 'speaking' &&
+                     data.vocabulary is list && data.vocabulary.size() < 100;
                     
-      return common && (listening || reading);
+      return common && (listening || reading || writing || speaking);
     }
 
     function isValidResult(data) {

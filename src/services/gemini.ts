@@ -251,3 +251,202 @@ Output in JSON format with this structure:
   const responseText = response.text;
   return JSON.parse(responseText);
 }
+
+export interface WritingLessonParams {
+  title: string;
+  topic: string;
+  vocabularyList?: string;
+  grammarPoint: string;
+  level: string;
+}
+
+export async function generateWritingLesson(params: WritingLessonParams) {
+  const prompt = `Role: Bạn là một chuyên gia biên soạn tài liệu tiếng Anh (ESL Content Creator), am hiểu sâu sắc khung tham chiếu ngôn ngữ chuẩn Châu Âu (CEFR) và cấu trúc đề thi IELTS.
+
+Task: Nhiệm vụ của bạn là tạo ra một bài tập Writing cá nhân hóa dựa trên các thông số đầu vào.
+
+Input Parameters:
+- Lesson Title: ${params.title}
+- Topic: ${params.topic}
+- Vocabulary List (if provided): ${params.vocabularyList || 'AI tự tạo dựa trên topic'}
+- Grammar Point: ${params.grammarPoint}
+- Level: ${params.level}
+
+Output Structure (5 Steps):
+1. Step 1 (Vocabulary): Cung cấp 5-8 từ vựng quan trọng liên quan đến topic. Mỗi từ có IPA, nghĩa tiếng Việt và ví dụ.
+2. Step 2 (Grammar MCQs): Tạo 20 câu hỏi trắc nghiệm (A, B, C, D) tập trung vào chủ điểm ngữ pháp "${params.grammarPoint}". Mỗi câu có giải thích chi tiết tại sao chọn đáp án đó.
+3. Step 3 (Error Identification): Tạo 2 đoạn văn (mỗi đoạn 3-5 câu) có chứa 3-5 lỗi sai về ngữ pháp "${params.grammarPoint}" và có sử dụng từ vựng ở Step 1. Liệt kê các lỗi sai, cách sửa và giải thích.
+4. Step 4 (Sentence Translation): Tạo 5 câu tiếng Việt (chứa từ vựng và ngữ pháp yêu cầu), yêu cầu dịch sang tiếng Anh. Cung cấp đáp án và giải thích.
+5. Step 5 (IELTS Paragraph): Tạo 1 chủ đề viết đoạn văn IELTS. Cung cấp 1 đoạn văn mẫu 3 câu theo format: Topic sentence -> Supporting sentence -> Example. Đoạn văn phải chứa từ vựng và ngữ pháp yêu cầu. Cung cấp bản dịch tiếng Việt tương ứng cho từng câu.
+
+Output in JSON format with this structure:
+{
+  "title": "string",
+  "vocabulary": [
+    { "word": "string", "ipa": "string", "vietnameseDefinition": "string", "example": "string" }
+  ],
+  "writingSteps": {
+    "step1": { "vocabulary": [...] },
+    "step2": { "questions": [{ "question": "string", "options": ["string", "string", "string", "string"], "answer": 0, "explanation": "string" }] },
+    "step3": { "paragraphs": [{ "text": "string", "errors": [{ "original": "string", "correction": "string", "explanation": "string" }] }] },
+    "step4": { "questions": [{ "vietnamese": "string", "english": "string", "explanation": "string" }] },
+    "step5": { "paragraphs": [{ "topic": "string", "vietnamese": { "topicSentence": "string", "supportingSentence": "string", "example": "string" }, "english": { "topicSentence": "string", "supportingSentence": "string", "example": "string" }, "explanation": "string" }] }
+  }
+}`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          vocabulary: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                word: { type: Type.STRING },
+                ipa: { type: Type.STRING },
+                vietnameseDefinition: { type: Type.STRING },
+                example: { type: Type.STRING },
+              },
+              required: ["word", "ipa", "vietnameseDefinition", "example"],
+            },
+          },
+          writingSteps: {
+            type: Type.OBJECT,
+            properties: {
+              step1: {
+                type: Type.OBJECT,
+                properties: {
+                  vocabulary: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        word: { type: Type.STRING },
+                        ipa: { type: Type.STRING },
+                        vietnameseDefinition: { type: Type.STRING },
+                        example: { type: Type.STRING },
+                      },
+                      required: ["word", "ipa", "vietnameseDefinition", "example"],
+                    },
+                  },
+                },
+                required: ["vocabulary"],
+              },
+              step2: {
+                type: Type.OBJECT,
+                properties: {
+                  questions: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        question: { type: Type.STRING },
+                        options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        answer: { type: Type.NUMBER },
+                        explanation: { type: Type.STRING },
+                      },
+                      required: ["question", "options", "answer", "explanation"],
+                    },
+                  },
+                },
+                required: ["questions"],
+              },
+              step3: {
+                type: Type.OBJECT,
+                properties: {
+                  paragraphs: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        text: { type: Type.STRING },
+                        errors: {
+                          type: Type.ARRAY,
+                          items: {
+                            type: Type.OBJECT,
+                            properties: {
+                              original: { type: Type.STRING },
+                              correction: { type: Type.STRING },
+                              explanation: { type: Type.STRING },
+                            },
+                            required: ["original", "correction", "explanation"],
+                          },
+                        },
+                      },
+                      required: ["text", "errors"],
+                    },
+                  },
+                },
+                required: ["paragraphs"],
+              },
+              step4: {
+                type: Type.OBJECT,
+                properties: {
+                  questions: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        vietnamese: { type: Type.STRING },
+                        english: { type: Type.STRING },
+                        explanation: { type: Type.STRING },
+                      },
+                      required: ["vietnamese", "english", "explanation"],
+                    },
+                  },
+                },
+                required: ["questions"],
+              },
+              step5: {
+                type: Type.OBJECT,
+                properties: {
+                  paragraphs: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        topic: { type: Type.STRING },
+                        vietnamese: {
+                          type: Type.OBJECT,
+                          properties: {
+                            topicSentence: { type: Type.STRING },
+                            supportingSentence: { type: Type.STRING },
+                            example: { type: Type.STRING },
+                          },
+                          required: ["topicSentence", "supportingSentence", "example"],
+                        },
+                        english: {
+                          type: Type.OBJECT,
+                          properties: {
+                            topicSentence: { type: Type.STRING },
+                            supportingSentence: { type: Type.STRING },
+                            example: { type: Type.STRING },
+                          },
+                          required: ["topicSentence", "supportingSentence", "example"],
+                        },
+                        explanation: { type: Type.STRING },
+                      },
+                      required: ["topic", "vietnamese", "english", "explanation"],
+                    },
+                  },
+                },
+                required: ["paragraphs"],
+              },
+            },
+            required: ["step1", "step2", "step3", "step4", "step5"],
+          },
+        },
+        required: ["title", "vocabulary", "writingSteps"],
+      },
+    },
+  });
+
+  const responseText = response.text;
+  return JSON.parse(responseText);
+}

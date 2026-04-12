@@ -1,14 +1,18 @@
-import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, Navigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { auth } from './firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import TeacherDashboard from './components/TeacherDashboard';
 import StudentDashboard from './components/StudentDashboard';
 import LessonCreator from './components/LessonCreator';
 import ReadingLessonCreator from './components/ReadingLessonCreator';
+import WritingLessonCreator from './components/WritingLessonCreator';
 import StudentLesson from './components/StudentLesson';
+import WritingLessonView from './components/WritingLessonView';
 import LessonAnalytics from './components/LessonAnalytics';
-import { LogIn, LogOut, BookOpen, BarChart3, PlusCircle, GraduationCap, UserCircle, Headphones, Mic, PenTool, ChevronRight, X, Users, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Lesson } from './types';
+import { LogIn, LogOut, BookOpen, BarChart3, PlusCircle, GraduationCap, UserCircle, Headphones, Mic, PenTool, ChevronRight, X, Users, ExternalLink, AlertTriangle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { isInAppBrowser } from './lib/utils';
@@ -243,14 +247,42 @@ export default function App() {
             <Route path="/student" element={<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><StudentDashboard /></div>} />
             <Route path="/teacher/new/listening" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><LessonCreator /></div> : <Navigate to="/" />} />
             <Route path="/teacher/new/reading" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><ReadingLessonCreator /></div> : <Navigate to="/" />} />
+            <Route path="/teacher/new/writing" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><WritingLessonCreator /></div> : <Navigate to="/" />} />
             <Route path="/teacher/analytics/:lessonId" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><LessonAnalytics /></div> : <Navigate to="/" />} />
-            <Route path="/lesson/:lessonId" element={<StudentLesson />} />
+            <Route path="/lesson/:lessonId" element={<LessonRouter />} />
           </Routes>
         </main>
         </ErrorBoundary>
       </div>
     </BrowserRouter>
   );
+}
+
+function LessonRouter() {
+  const { lessonId } = useParams();
+  const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLesson = async () => {
+      if (!lessonId) return;
+      const docSnap = await getDoc(doc(db, 'lessons', lessonId));
+      if (docSnap.exists()) {
+        setLesson(docSnap.data() as Lesson);
+      }
+      setLoading(false);
+    };
+    fetchLesson();
+  }, [lessonId]);
+
+  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
+  if (!lesson) return <div className="text-center py-20">Không tìm thấy bài học.</div>;
+
+  if (lesson.type === 'writing') {
+    return <WritingLessonView />;
+  }
+
+  return <StudentLesson />;
 }
 
 function Home({ user, login, isLoggingIn }: { user: User | null, login: () => void, isLoggingIn: boolean }) {
@@ -400,6 +432,17 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
                   <span className="text-xl font-bold text-slate-900">Đọc</span>
                 </Link>
 
+                <Link 
+                  to="/teacher/new/writing"
+                  onClick={() => setShowCreateOptions(false)}
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
+                >
+                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
+                    <PenTool className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                  </div>
+                  <span className="text-xl font-bold text-slate-900">Viết</span>
+                </Link>
+
                 <button 
                   className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed relative"
                   title="Coming soon"
@@ -411,19 +454,6 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
                     <Mic className="w-8 h-8 text-indigo-600 group-hover:text-white" />
                   </div>
                   <span className="text-xl font-bold text-slate-900">Nói</span>
-                </button>
-
-                <button 
-                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed relative"
-                  title="Coming soon"
-                >
-                  <div className="absolute top-4 right-4 bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded-full">
-                    Coming soon
-                  </div>
-                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
-                    <PenTool className="w-8 h-8 text-indigo-600 group-hover:text-white" />
-                  </div>
-                  <span className="text-xl font-bold text-slate-900">Viết</span>
                 </button>
               </div>
             </motion.div>
