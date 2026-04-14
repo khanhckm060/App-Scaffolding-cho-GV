@@ -23,7 +23,14 @@ const ALLOWED_TEACHERS = [
   "hanhnguyen.smiley@gmail.com",
   "doanthu3421@gmail.com",
   "nguyenthithanhbinh1611@gmail.com",
-  "thuhanguyen762000@gmail.com"
+  "thuhanguyen762000@gmail.com",
+  "thyphuong111191@gmail.com",
+  "baohieu161102@gmail.com",
+  "ielts.maya@gmail.com",
+  "dongphongtlc@gmail.com",
+  "caothity51@gmail.com",
+  "nguyenthituyettrinh02032000@gmail.com",
+  "nguyen.tuyettrinh0203@gmail.com"
 ];
 
 const MAINTENANCE_MODE = true;
