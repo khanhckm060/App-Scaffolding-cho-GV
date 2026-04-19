@@ -450,3 +450,148 @@ Output in JSON format with this structure:
   const responseText = response.text;
   return JSON.parse(responseText);
 }
+
+export interface WritingCheckResult {
+  correct: boolean;
+  score?: number; // 0-100
+  feedback: string;
+  suggestedCorrection?: string;
+}
+
+export async function checkStep3Correction(original: string, correction: string, studentAnswer: string): Promise<WritingCheckResult> {
+  const prompt = `You are an English teacher. 
+  Original incorrect sentence: "${original}"
+  Target correction: "${correction}"
+  Student's answer: "${studentAnswer}"
+
+  Task: Check if the student's answer accurately corrects the error. 
+  Rule: Ignore minor mistakes like punctuation or small typos if the main grammar error is fixed. If it matches roughly 80% of the target correction's intent and grammar, mark it as correct.
+  
+  Return ONLY JSON:
+  {
+    "correct": boolean,
+    "feedback": "string in Vietnamese explaining why or what minor mistake was made"
+  }`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          correct: { type: Type.BOOLEAN },
+          feedback: { type: Type.STRING }
+        },
+        required: ["correct", "feedback"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+}
+
+export async function checkWritingGrammar(targetVietnamese: string, targetEnglish: string, studentAnswer: string): Promise<WritingCheckResult> {
+  const prompt = `You are an English teacher.
+  Vietnamese sentence: "${targetVietnamese}"
+  Reference English translation: "${targetEnglish}"
+  Student's provided translation: "${studentAnswer}"
+
+  Task: 
+  1. Check if the student used correct grammar.
+  2. If the grammar is correct and the meaning matches the Vietnamese sentence, set "correct" to true.
+  3. If there are grammar errors, set "correct" to false and provide specific feedback in Vietnamese on how to fix them.
+  4. Accuracy should be around 80% to be considered correct, ignoring very minor punctuation issues.
+
+  Return ONLY JSON:
+  {
+    "correct": boolean,
+    "feedback": "string in Vietnamese detail instructions",
+    "suggestedCorrection": "string (the student's sentence with fixes or a better version)"
+  }`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          correct: { type: Type.BOOLEAN },
+          feedback: { type: Type.STRING },
+          suggestedCorrection: { type: Type.STRING }
+        },
+        required: ["correct", "feedback", "suggestedCorrection"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+}
+
+export async function checkParagraphGrammar(topic: string, referenceEnglish: string, studentAnswer: string): Promise<WritingCheckResult> {
+  const prompt = `You are an English teacher.
+  Paragraph Topic: "${topic}"
+  Reference sample paragraph: "${referenceEnglish}"
+  Student's written paragraph: "${studentAnswer}"
+
+  Task:
+  1. Check if the student's paragraph is grammatically correct.
+  2. Ensure it follows the logical flow (Topic -> Supporting -> Example) if applicable.
+  3. Set "correct" to true if it is 80% accurate and grammatically sound.
+  4. If incorrect, provide detailed feedback in Vietnamese identifying specific errors and how to fix them.
+
+  Return ONLY JSON:
+  {
+    "correct": boolean,
+    "feedback": "string in Vietnamese detail instructions",
+    "suggestedCorrection": "string (the student's paragraph with corrections)"
+  }`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          correct: { type: Type.BOOLEAN },
+          feedback: { type: Type.STRING },
+          suggestedCorrection: { type: Type.STRING }
+        },
+        required: ["correct", "feedback", "suggestedCorrection"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+}
+
+export async function explainMCQAnswer(question: string, options: string[], selectedOption: string, isCorrect: boolean, correctAnswer: string): Promise<string> {
+  const prompt = `You are an English teacher providing scaffolding feedback. 
+  Question: "${question}"
+  Options: ${options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join(", ")}
+  Student selected: "${selectedOption}"
+  The correct answer is: "${correctAnswer}" (FOR INTERNAL REFERENCE ONLY - DO NOT REVEAL)
+  Status: ${isCorrect ? "Correct" : "Incorrect"}
+
+  Task: Provide a short feedback in Vietnamese.
+  - CRITICAL: DO NOT reveal the correct answer choice (text or letter) in your explanation.
+  - If incorrect: Explain why the student's choice ("${selectedOption}") is wrong. 
+    Give a generic hint about the grammar rule needed (e.g., "The subject cannot perform this action", "This requires a passive structure", "Check the tense marker"). 
+    The goal is for the student to identify the correct answer themselves based on your hint.
+  - If correct: Confirm why their choice is correct based on grammar rules.
+  
+  Keep it concise (max 2 sentences).
+  Return ONLY the explanation string.`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt
+  });
+
+  return response.text;
+}

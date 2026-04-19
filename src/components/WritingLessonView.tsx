@@ -8,9 +8,17 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   CheckCircle2, AlertCircle, ChevronRight, ChevronLeft, 
   BookOpen, Headphones, PenTool, Sparkles, Trophy, 
-  Info, X, ArrowRight, Volume2, Search, Edit3, Languages
+  Info, X, ArrowRight, Volume2, Search, Edit3, Languages,
+  Loader2
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { 
+  checkStep3Correction, 
+  checkWritingGrammar, 
+  checkParagraphGrammar, 
+  explainMCQAnswer,
+  WritingCheckResult 
+} from '../services/gemini';
 
 export default function WritingLessonView() {
   const { lessonId } = useParams();
@@ -27,8 +35,15 @@ export default function WritingLessonView() {
   const [step2Answers, setStep2Answers] = useState<number[]>([]);
   const [step3Answers, setStep3Answers] = useState<string[][]>([]); // Array of corrections for each paragraph
   const [step4Answers, setStep4Answers] = useState<string[]>([]);
-  const [step5Answers, setStep5Answers] = useState<string[][]>([]); // [topic, supporting, example] for each paragraph
+  const [step5Answers, setStep5Answers] = useState<string[]>([]); // Merged paragraphs
   
+  const [step3Results, setStep3Results] = useState<(WritingCheckResult | null)[][]>([]);
+  const [step4Results, setStep4Results] = useState<(WritingCheckResult | null)[]>([]);
+  const [step5Results, setStep5Results] = useState<(WritingCheckResult | null)[]>([]);
+  const [step2ResultsVisibility, setStep2ResultsVisibility] = useState<boolean[]>([]);
+  const [step2DynamicFeedback, setStep2DynamicFeedback] = useState<string[]>([]);
+  const [checking, setChecking] = useState<string | null>(null);
+
   const [showFeedback, setShowFeedback] = useState(false);
   const [score, setScore] = useState(0);
 
@@ -43,9 +58,14 @@ export default function WritingLessonView() {
           // Initialize answers
           if (data.writingSteps) {
             setStep2Answers(new Array(data.writingSteps.step2.questions.length).fill(-1));
+            setStep2ResultsVisibility(new Array(data.writingSteps.step2.questions.length).fill(false));
+            setStep2DynamicFeedback(new Array(data.writingSteps.step2.questions.length).fill(''));
             setStep3Answers(data.writingSteps.step3.paragraphs.map(p => new Array(p.errors.length).fill('')));
+            setStep3Results(data.writingSteps.step3.paragraphs.map(p => new Array(p.errors.length).fill(null)));
             setStep4Answers(new Array(data.writingSteps.step4.questions.length).fill(''));
-            setStep5Answers(data.writingSteps.step5.paragraphs.map(() => ['', '', '']));
+            setStep4Results(new Array(data.writingSteps.step4.questions.length).fill(null));
+            setStep5Answers(new Array(data.writingSteps.step5.paragraphs.length).fill(''));
+            setStep5Results(new Array(data.writingSteps.step5.paragraphs.length).fill(null));
           }
         }
       } catch (err) {
@@ -68,12 +88,11 @@ export default function WritingLessonView() {
     earnedPoints += step2Answers.reduce((acc, ans, idx) => 
       acc + (ans === steps.step2.questions[idx].answer ? 1 : 0), 0);
 
-    // Step 3: Error Identification (60% threshold per paragraph for full point? No, let's do per error)
+    // Step 3: Error Identification
     steps.step3.paragraphs.forEach((p, pIdx) => {
       totalPoints += p.errors.length;
       p.errors.forEach((err, eIdx) => {
-        // Simple string matching for now, maybe AI grading later
-        if (step3Answers[pIdx][eIdx].toLowerCase().trim() === err.correction.toLowerCase().trim()) {
+        if (step3Results[pIdx]?.[eIdx]?.correct) {
           earnedPoints += 1;
         }
       });
@@ -82,20 +101,98 @@ export default function WritingLessonView() {
     // Step 4: Sentence Translation
     totalPoints += steps.step4.questions.length;
     step4Answers.forEach((ans, idx) => {
-      // 60% similarity or manual check? User said "đúng 60% là có thể tính điểm"
-      // For now, let's assume a simple check or just mark as completed
-      if (ans.trim().length > 5) earnedPoints += 1; 
+      if (step4Results[idx]?.correct) earnedPoints += 1;
     });
 
     // Step 5: Paragraph Translation
-    totalPoints += steps.step5.paragraphs.length * 3;
-    step5Answers.forEach((ans) => {
-      ans.forEach(sentence => {
-        if (sentence.trim().length > 5) earnedPoints += 1;
-      });
+    totalPoints += steps.step5.paragraphs.length;
+    step5Answers.forEach((ans, idx) => {
+      if (step5Results[idx]?.correct) earnedPoints += 1;
     });
 
     return Math.round((earnedPoints / totalPoints) * 10);
+  };
+
+  const handleCheckStep2 = async (idx: number) => {
+    if (!lesson?.writingSteps) return;
+    const q = lesson.writingSteps.step2.questions[idx];
+    const selectedIdx = step2Answers[idx];
+    if (selectedIdx === -1) return;
+
+    const selectedText = q.options[selectedIdx];
+    const correctText = q.options[q.answer];
+    const isCorrect = selectedIdx === q.answer;
+
+    setChecking(`step2-${idx}`);
+    try {
+      const feedback = await explainMCQAnswer(q.question, q.options, selectedText, isCorrect, correctText);
+      const newFeedback = [...step2DynamicFeedback];
+      newFeedback[idx] = feedback;
+      setStep2DynamicFeedback(newFeedback);
+      
+      const newVis = [...step2ResultsVisibility];
+      newVis[idx] = true;
+      setStep2ResultsVisibility(newVis);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setChecking(null);
+    }
+  };
+
+  const handleCheckStep3 = async (pIdx: number, eIdx: number) => {
+    if (!lesson?.writingSteps) return;
+    const error = lesson.writingSteps.step3.paragraphs[pIdx].errors[eIdx];
+    const answer = step3Answers[pIdx][eIdx];
+    
+    setChecking(`step3-${pIdx}-${eIdx}`);
+    try {
+      const result = await checkStep3Correction(error.original, error.correction, answer);
+      const newResults = [...step3Results];
+      newResults[pIdx][eIdx] = result;
+      setStep3Results(newResults);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setChecking(null);
+    }
+  };
+
+  const handleCheckStep4 = async (idx: number) => {
+    if (!lesson?.writingSteps) return;
+    const q = lesson.writingSteps.step4.questions[idx];
+    const answer = step4Answers[idx];
+
+    setChecking(`step4-${idx}`);
+    try {
+      const result = await checkWritingGrammar(q.vietnamese, q.english, answer);
+      const newResults = [...step4Results];
+      newResults[idx] = result;
+      setStep4Results(newResults);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setChecking(null);
+    }
+  };
+
+  const handleCheckStep5 = async (pIdx: number) => {
+    if (!lesson?.writingSteps) return;
+    const p = lesson.writingSteps.step5.paragraphs[pIdx];
+    const answer = step5Answers[pIdx];
+    const reference = `${p.english.topicSentence} ${p.english.supportingSentence} ${p.english.example}`;
+
+    setChecking(`step5-${pIdx}`);
+    try {
+      const result = await checkParagraphGrammar(p.topic, reference, answer);
+      const newResults = [...step5Results];
+      newResults[pIdx] = result;
+      setStep5Results(newResults);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setChecking(null);
+    }
   };
 
   const handleSubmit = async () => {
@@ -222,6 +319,10 @@ export default function WritingLessonView() {
                               const newAns = [...step2Answers];
                               newAns[qIdx] = oIdx;
                               setStep2Answers(newAns);
+                              // Reset visibility if they change answer
+                              const newVis = [...step2ResultsVisibility];
+                              newVis[qIdx] = false;
+                              setStep2ResultsVisibility(newVis);
                             }}
                             className={cn(
                               "p-4 rounded-2xl border-2 text-left transition-all font-medium",
@@ -237,7 +338,19 @@ export default function WritingLessonView() {
                           </button>
                         ))}
                       </div>
-                      {showFeedback && (
+                      
+                      <div className="flex justify-start">
+                        <button
+                          onClick={() => handleCheckStep2(qIdx)}
+                          disabled={checking !== null || step2Answers[qIdx] === -1}
+                          className="px-6 py-2 bg-indigo-50 text-indigo-600 rounded-xl font-bold hover:bg-indigo-100 disabled:opacity-50 transition-all flex items-center space-x-2"
+                        >
+                          {checking === `step2-${qIdx}` ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4" />}
+                          <span>Check Đáp án</span>
+                        </button>
+                      </div>
+
+                      {(step2ResultsVisibility[qIdx] || showFeedback) && (
                         <div className={cn(
                           "p-4 rounded-2xl text-sm",
                           step2Answers[qIdx] === q.answer ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
@@ -245,7 +358,7 @@ export default function WritingLessonView() {
                           <p className="font-bold mb-1">
                             {step2Answers[qIdx] === q.answer ? "Chính xác!" : "Chưa đúng."}
                           </p>
-                          <p className="opacity-90">{q.explanation}</p>
+                          <p className="opacity-90">{step2DynamicFeedback[qIdx] || q.explanation}</p>
                         </div>
                       )}
                     </div>
@@ -277,19 +390,50 @@ export default function WritingLessonView() {
                               Lỗi: "{err.original}"
                             </div>
                             <div className="space-y-2">
-                              <input 
-                                type="text"
-                                value={step3Answers[pIdx][eIdx]}
-                                onChange={e => {
-                                  const newAns = [...step3Answers];
-                                  newAns[pIdx][eIdx] = e.target.value;
-                                  setStep3Answers(newAns);
-                                }}
-                                placeholder="Nhập bản sửa lỗi..."
-                                className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all"
-                              />
+                              <div className="flex space-x-2">
+                                <input 
+                                  type="text"
+                                  value={step3Answers[pIdx][eIdx]}
+                                  onChange={e => {
+                                    const newAns = [...step3Answers];
+                                    newAns[pIdx][eIdx] = e.target.value;
+                                    setStep3Answers(newAns);
+                                    // Reset result if student changes answer
+                                    const newResults = [...step3Results];
+                                    newResults[pIdx][eIdx] = null;
+                                    setStep3Results(newResults);
+                                  }}
+                                  placeholder="Nhập bản sửa lỗi..."
+                                  className={cn(
+                                    "flex-1 px-4 py-3 rounded-xl border-2 outline-none transition-all",
+                                    step3Results[pIdx][eIdx]?.correct ? "border-emerald-500 bg-emerald-50" : "border-slate-100 focus:border-indigo-500"
+                                  )}
+                                />
+                                <button
+                                  onClick={() => handleCheckStep3(pIdx, eIdx)}
+                                  disabled={checking !== null || !step3Answers[pIdx][eIdx].trim()}
+                                  className="px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center"
+                                >
+                                  {checking === `step3-${pIdx}-${eIdx}` ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    "Check"
+                                  )}
+                                </button>
+                              </div>
+                              {step3Results[pIdx][eIdx] && (
+                                <div className={cn(
+                                  "p-3 rounded-xl text-xs",
+                                  step3Results[pIdx][eIdx]?.correct ? "bg-emerald-100 text-emerald-800" : "bg-red-50 text-red-700 border border-red-100"
+                                )}>
+                                  <div className="flex items-start space-x-2">
+                                    {step3Results[pIdx][eIdx]?.correct ? <CheckCircle2 className="w-3 h-3 mt-0.5" /> : <AlertCircle className="w-3 h-3 mt-0.5" />}
+                                    <p>{step3Results[pIdx][eIdx]?.feedback}</p>
+                                  </div>
+                                </div>
+                              )}
                               {showFeedback && (
-                                <div className="p-3 bg-emerald-50 rounded-xl text-xs text-emerald-700">
+                                <div className="p-3 bg-slate-100 rounded-xl text-xs text-slate-700">
                                   <p className="font-bold">Đáp án: {err.correction}</p>
                                   <p className="opacity-80">{err.explanation}</p>
                                 </div>
@@ -316,16 +460,46 @@ export default function WritingLessonView() {
                       <div className="p-6 bg-indigo-50 rounded-2xl border border-indigo-100">
                         <p className="text-lg font-bold text-indigo-900">{q.vietnamese}</p>
                       </div>
-                      <textarea 
-                        value={step4Answers[i]}
-                        onChange={e => {
-                          const newAns = [...step4Answers];
-                          newAns[i] = e.target.value;
-                          setStep4Answers(newAns);
-                        }}
-                        placeholder="Nhập bản dịch tiếng Anh của bạn..."
-                        className="w-full p-6 rounded-2xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all min-h-[120px]"
-                      />
+                      <div className="relative">
+                        <textarea 
+                          value={step4Answers[i]}
+                          onChange={e => {
+                            const newAns = [...step4Answers];
+                            newAns[i] = e.target.value;
+                            setStep4Answers(newAns);
+                            const newRes = [...step4Results];
+                            newRes[i] = null;
+                            setStep4Results(newRes);
+                          }}
+                          placeholder="Nhập bản dịch tiếng Anh của bạn..."
+                          className={cn(
+                            "w-full p-6 rounded-2xl border-2 outline-none transition-all min-h-[120px] pr-32",
+                            step4Results[i]?.correct ? "border-emerald-500 bg-emerald-50" : "border-slate-100 focus:border-indigo-500"
+                          )}
+                        />
+                        <button
+                          onClick={() => handleCheckStep4(i)}
+                          disabled={checking !== null || !step4Answers[i].trim()}
+                          className="absolute bottom-4 right-4 px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center"
+                        >
+                          {checking === `step4-${i}` ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <PenTool className="w-4 h-4 mr-2" />}
+                          Check Đáp án
+                        </button>
+                      </div>
+                      {step4Results[i] && (
+                        <div className={cn(
+                          "p-6 rounded-2xl border",
+                          step4Results[i]?.correct ? "bg-emerald-50 border-emerald-100 text-emerald-800" : "bg-red-50 border-red-100 text-red-800"
+                        )}>
+                          <div className="flex items-start space-x-3">
+                            {step4Results[i]?.correct ? <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-1" /> : <AlertCircle className="w-5 h-5 text-red-600 mt-1" />}
+                            <div>
+                              <p className="font-bold mb-2">{step4Results[i]?.correct ? "Chính xác!" : "Cần chỉnh sửa:"}</p>
+                              <p className="text-sm mb-4">{step4Results[i]?.feedback}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       {showFeedback && (
                         <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200">
                           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Đáp án gợi ý:</p>
@@ -350,50 +524,59 @@ export default function WritingLessonView() {
                     <div key={pIdx} className="space-y-8">
                       <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100">
                         <h4 className="text-lg font-bold text-amber-900 mb-2">Topic: {p.topic}</h4>
-                        <p className="text-sm text-amber-700 italic">Viết một đoạn văn gồm 3 câu: Topic Sentence {"->"} Supporting Sentence {"->"} Example.</p>
+                        <div className="space-y-2 text-sm text-amber-700">
+                          <p className="font-medium italic">Viết một đoạn văn hoàn chỉnh dựa trên các câu tiếng Việt sau:</p>
+                          <ul className="list-disc list-inside ml-2 space-y-1">
+                            <li>Topic Sentence: {p.vietnamese.topicSentence}</li>
+                            <li>Supporting Sentence: {p.vietnamese.supportingSentence}</li>
+                            <li>Example: {p.vietnamese.example}</li>
+                          </ul>
+                        </div>
                       </div>
                       
                       <div className="space-y-6">
-                        <div className="space-y-3">
-                          <label className="text-sm font-bold text-slate-700">1. Topic Sentence (Tiếng Việt: {p.vietnamese.topicSentence})</label>
+                        <div className="relative">
                           <textarea 
-                            value={step5Answers[pIdx][0]}
+                            value={step5Answers[pIdx]}
                             onChange={e => {
                               const newAns = [...step5Answers];
-                              newAns[pIdx][0] = e.target.value;
+                              newAns[pIdx] = e.target.value;
                               setStep5Answers(newAns);
+                              const newRes = [...step5Results];
+                              newRes[pIdx] = null;
+                              setStep5Results(newRes);
                             }}
-                            className="w-full p-4 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all"
-                            placeholder="Dịch câu Topic Sentence..."
+                            className={cn(
+                              "w-full p-8 rounded-3xl border-2 outline-none transition-all min-h-[250px] text-lg leading-relaxed",
+                              step5Results[pIdx]?.correct ? "border-emerald-500 bg-emerald-50" : "border-slate-100 focus:border-indigo-500"
+                            )}
+                            placeholder="Viết đoạn văn của bạn ở đây (gom 3 câu vào một đoạn)..."
                           />
-                        </div>
-                        <div className="space-y-3">
-                          <label className="text-sm font-bold text-slate-700">2. Supporting Sentence (Tiếng Việt: {p.vietnamese.supportingSentence})</label>
-                          <textarea 
-                            value={step5Answers[pIdx][1]}
-                            onChange={e => {
-                              const newAns = [...step5Answers];
-                              newAns[pIdx][1] = e.target.value;
-                              setStep5Answers(newAns);
-                            }}
-                            className="w-full p-4 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all"
-                            placeholder="Dịch câu Supporting Sentence..."
-                          />
-                        </div>
-                        <div className="space-y-3">
-                          <label className="text-sm font-bold text-slate-700">3. Example (Tiếng Việt: {p.vietnamese.example})</label>
-                          <textarea 
-                            value={step5Answers[pIdx][2]}
-                            onChange={e => {
-                              const newAns = [...step5Answers];
-                              newAns[pIdx][2] = e.target.value;
-                              setStep5Answers(newAns);
-                            }}
-                            className="w-full p-4 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all"
-                            placeholder="Dịch câu Example..."
-                          />
+                          <button
+                            onClick={() => handleCheckStep5(pIdx)}
+                            disabled={checking !== null || !step5Answers[pIdx].trim()}
+                            className="absolute bottom-6 right-6 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center shadow-lg"
+                          >
+                            {checking === `step5-${pIdx}` ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Languages className="w-5 h-5 mr-2" />}
+                            Check Đáp án
+                          </button>
                         </div>
                       </div>
+
+                      {step5Results[pIdx] && (
+                        <div className={cn(
+                          "p-8 rounded-[2.5rem] border",
+                          step5Results[pIdx]?.correct ? "bg-emerald-50 border-emerald-100 text-emerald-800" : "bg-red-50 border-red-100 text-red-800"
+                        )}>
+                          <div className="flex items-start space-x-4">
+                            {step5Results[pIdx]?.correct ? <CheckCircle2 className="w-6 h-6 text-emerald-600 mt-1" /> : <AlertCircle className="w-6 h-6 text-red-600 mt-1" />}
+                            <div>
+                              <h5 className="text-xl font-bold mb-3">{step5Results[pIdx]?.correct ? "Đoạn văn đạt yêu cầu!" : "Lưu ý về ngữ pháp & nội dung:"}</h5>
+                              <p className="text-slate-700 leading-relaxed mb-6 whitespace-pre-wrap">{step5Results[pIdx]?.feedback}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {showFeedback && (
                         <div className="p-8 bg-slate-50 rounded-3xl border border-slate-200 space-y-4">
@@ -427,16 +610,18 @@ export default function WritingLessonView() {
               </button>
               
               <div className="flex items-center space-x-3">
-                <button
-                  onClick={() => setShowFeedback(!showFeedback)}
-                  className={cn(
-                    "px-6 py-3 rounded-xl font-bold transition-all flex items-center space-x-2",
-                    showFeedback ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
-                  )}
-                >
-                  <Info className="w-5 h-5" />
-                  <span>{showFeedback ? "Ẩn giải thích" : "Xem giải thích"}</span>
-                </button>
+                {currentStep < 2 && (
+                  <button
+                    onClick={() => setShowFeedback(!showFeedback)}
+                    className={cn(
+                      "px-6 py-3 rounded-xl font-bold transition-all flex items-center space-x-2",
+                      showFeedback ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                    )}
+                  >
+                    <Info className="w-5 h-5" />
+                    <span>{showFeedback ? "Ẩn giải thích" : "Xem giải thích"}</span>
+                  </button>
+                )}
 
                 {currentStep < 5 ? (
                   <button

@@ -60,8 +60,116 @@ export async function downloadWorksheet(lesson: Lesson) {
           ),
           new Paragraph({ text: '', spacing: { after: 400 } }),
 
-          // Step 4: Phrase Dictation
-          ...(lesson.steps?.step2?.phrases ? [
+          // Writing Steps (if writing lesson)
+          ...(lesson.type === 'writing' && lesson.writingSteps ? [
+            // Writing Step 2: MCQ Grammar
+            new Paragraph({
+              text: 'STEP 2: GRAMMAR PRACTICE (MCQs)',
+              heading: HeadingLevel.HEADING_2,
+              spacing: { before: 600, after: 200 },
+            }),
+            ...lesson.writingSteps.step2.questions.map((q, i) => [
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `Question ${i + 1}: `, bold: true, size: 24 }),
+                  new TextRun({ text: q.question, size: 24 }),
+                ],
+                spacing: { before: 300, after: 150 },
+              }),
+              ...q.options.map((opt, optIdx) => 
+                new Paragraph({
+                  children: [
+                    new TextRun({ text: `${String.fromCharCode(65 + optIdx)}. `, bold: true, size: 22 }),
+                    new TextRun({ text: opt, size: 22 }),
+                  ],
+                  indent: { left: 720 },
+                  spacing: { after: 80 },
+                })
+              )
+            ]).flat(),
+
+            // Writing Step 3: Error Identification
+            new Paragraph({
+              text: 'STEP 3: ERROR IDENTIFICATION',
+              heading: HeadingLevel.HEADING_2,
+              spacing: { before: 600, after: 200 },
+            }),
+            ...lesson.writingSteps.step3.paragraphs.map((p, pIdx) => [
+              new Paragraph({
+                children: [
+                    new TextRun({ text: `Paragraph ${pIdx + 1}:`, bold: true, size: 24 }),
+                ],
+                spacing: { before: 200, after: 100 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: p.text, size: 22 }),
+                ],
+                alignment: AlignmentType.JUSTIFIED,
+                spacing: { after: 200, line: 360 },
+              }),
+              ...p.errors.map((err, eIdx) => 
+                new Paragraph({
+                  children: [
+                    new TextRun({ text: `Error: "${err.original}"`, italics: true, color: "DC2626", size: 22 }),
+                    new TextRun({ text: ` -> Correction: ___________________________________`, size: 22 }),
+                  ],
+                  indent: { left: 360 },
+                  spacing: { after: 150 },
+                })
+              )
+            ]).flat(),
+
+            // Writing Step 4: Sentence Translation
+            new Paragraph({
+              text: 'STEP 4: SENTENCE TRANSLATION (VIETNAMESE - ENGLISH)',
+              heading: HeadingLevel.HEADING_2,
+              spacing: { before: 600, after: 200 },
+            }),
+            ...lesson.writingSteps.step4.questions.map((q, i) => [
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `${i + 1}. ${q.vietnamese}`, bold: true, size: 24 }),
+                ],
+                spacing: { before: 200, after: 100 },
+              }),
+              new Paragraph({
+                text: '__________________________________________________________________',
+                indent: { left: 360 },
+                spacing: { after: 200 },
+              })
+            ]).flat(),
+
+            // Writing Step 5: Paragraph Writing
+            new Paragraph({
+              text: 'STEP 5: IELTS PARAGRAPH WRITING',
+              heading: HeadingLevel.HEADING_2,
+              spacing: { before: 600, after: 200 },
+            }),
+            ...lesson.writingSteps.step5.paragraphs.map((p, pIdx) => [
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `Topic: ${p.topic}`, bold: true, size: 24 }),
+                ],
+                spacing: { before: 200, after: 100 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: "Write a complete paragraph merging these 3 points:", italics: true, size: 20 }),
+                ],
+              }),
+              new Paragraph({ children: [new TextRun({ text: `• Topic Sentence: ${p.vietnamese.topicSentence}`, size: 20 })], indent: { left: 360 } }),
+              new Paragraph({ children: [new TextRun({ text: `• Supporting Sentence: ${p.vietnamese.supportingSentence}`, size: 20 })], indent: { left: 360 } }),
+              new Paragraph({ children: [new TextRun({ text: `• Example: ${p.vietnamese.example}`, size: 20 })], indent: { left: 360 } }),
+              new Paragraph({
+                text: '\n\n\n\n\n\n\n\n', // Blank space for writing
+                spacing: { before: 400, after: 400 },
+              })
+            ]).flat(),
+          ] : []),
+
+          // Step 4: Phrase Dictation (Listening/Reading legacy)
+          ...(lesson.type !== 'writing' && lesson.steps?.step2?.phrases ? [
             new Paragraph({
               text: 'PHRASE DICTATION',
               heading: HeadingLevel.HEADING_2,
@@ -159,13 +267,113 @@ export async function downloadWorksheet(lesson: Lesson) {
           new Paragraph({
             children: [
               new TextRun({
-                text: lesson.passage || lesson.script || '',
+                text: lesson.passage || lesson.script || (lesson.type === 'writing' ? 'WRITING GUIDELINES' : ''),
                 size: 22,
               }),
             ],
             alignment: AlignmentType.JUSTIFIED,
             spacing: { after: 400, line: 300 },
           }),
+
+          // Writing Answers (if writing lesson)
+          ...(lesson.type === 'writing' && lesson.writingSteps ? [
+             // Step 2 Answers
+             new Paragraph({
+               text: 'STEP 2: MCQs ANSWERS',
+               heading: HeadingLevel.HEADING_2,
+               spacing: { before: 400, after: 200 },
+             }),
+             ...lesson.writingSteps.step2.questions.map((q, i) => [
+               new Paragraph({
+                 children: [
+                   new TextRun({ text: `Question ${i + 1}: `, bold: true, size: 22 }),
+                   new TextRun({ text: `${String.fromCharCode(65 + q.answer)}. ${q.options[q.answer]}`, color: '2E7D32', bold: true, size: 22 }),
+                 ],
+                 indent: { left: 360 },
+                 spacing: { after: 100 },
+               }),
+               new Paragraph({
+                children: [
+                  new TextRun({ text: 'Explanation: ', italics: true, bold: true, size: 18, color: '666666' }),
+                  new TextRun({ text: q.explanation, italics: true, size: 18, color: '666666' }),
+                ],
+                indent: { left: 360 },
+                spacing: { after: 200 },
+              })
+             ]).flat(),
+
+             // Step 3 Answers
+             new Paragraph({
+               text: 'STEP 3: ERROR IDENTIFICATION ANSWERS',
+               heading: HeadingLevel.HEADING_2,
+               spacing: { before: 400, after: 200 },
+             }),
+             ...lesson.writingSteps.step3.paragraphs.map((p, pIdx) => 
+               p.errors.map((err, eIdx) => 
+                 new Paragraph({
+                   children: [
+                     new TextRun({ text: `P${pIdx + 1} - Error "${err.original}": `, bold: true, size: 22 }),
+                     new TextRun({ text: err.correction, color: '2E7D32', bold: true, size: 22 }),
+                     new TextRun({ text: ` (${err.explanation})`, italics: true, size: 18, color: '666666' }),
+                   ],
+                   indent: { left: 360 },
+                   spacing: { after: 100 },
+                 })
+               )
+             ).flat(),
+
+             // Step 4 Answers
+             new Paragraph({
+               text: 'STEP 4: SENTENCE TRANSLATION ANSWERS',
+               heading: HeadingLevel.HEADING_2,
+               spacing: { before: 400, after: 200 },
+             }),
+             ...lesson.writingSteps.step4.questions.map((q, i) => [
+               new Paragraph({
+                 children: [
+                   new TextRun({ text: `${i + 1}. `, bold: true, size: 22 }),
+                   new TextRun({ text: q.english, color: '2E7D32', bold: true, size: 22 }),
+                 ],
+                 indent: { left: 360 },
+                 spacing: { after: 100 },
+               }),
+               new Paragraph({
+                 children: [
+                   new TextRun({ text: `Explanation: ${q.explanation}`, italics: true, size: 18, color: '666666' }),
+                 ],
+                 indent: { left: 360 },
+                 spacing: { after: 200 },
+               })
+             ]).flat(),
+
+             // Step 5 Answers
+             new Paragraph({
+               text: 'STEP 5: IELTS PARAGRAPH MODEL ANSWERS',
+               heading: HeadingLevel.HEADING_2,
+               spacing: { before: 400, after: 200 },
+             }),
+             ...lesson.writingSteps.step5.paragraphs.map((p, i) => [
+               new Paragraph({
+                 children: [
+                   new TextRun({ text: `Topic ${i + 1}: ${p.topic}`, bold: true, size: 22 }),
+                 ],
+                 spacing: { after: 100 },
+               }),
+               new Paragraph({
+                 children: [
+                    new TextRun({ text: `${p.english.topicSentence} ${p.english.supportingSentence} ${p.english.example}`, color: '2E7D32', bold: true, size: 22 }),
+                 ],
+                 alignment: AlignmentType.JUSTIFIED,
+                 spacing: { after: 100 },
+               }),
+               new Paragraph({
+                children: [
+                  new TextRun({ text: `Explanation: ${p.explanation}`, italics: true, size: 18, color: '666666' }),
+                ],
+                spacing: { after: 300 },
+              })
+             ]).flat(),
+          ] : []),
           // Step 4: Phrase Dictation Answers
           ...(lesson.steps?.step2?.phrases ? [
             new Paragraph({
