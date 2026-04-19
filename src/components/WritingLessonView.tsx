@@ -410,8 +410,8 @@ export default function WritingLessonView() {
                   <h3 className="text-2xl font-bold text-slate-900">Step 1: Ôn tập từ vựng</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {steps.step1.vocabulary.map((vocab, i) => (
-                    <div key={`step1-vocab-${i}`} className="p-6 rounded-3xl bg-slate-50 border border-slate-100 hover:border-indigo-200 transition-all group">
+                  {steps.step1.vocabulary.map((vocab) => (
+                    <div key={`step1-vocab-${vocab.word}-${vocab.vietnameseDefinition}`} className="p-6 rounded-3xl bg-slate-50 border border-slate-100 hover:border-indigo-200 transition-all group">
                       <div className="flex justify-between items-start mb-2">
                         <h4 className="text-xl font-bold text-slate-900">{vocab.word}</h4>
                         <button 
@@ -444,7 +444,7 @@ export default function WritingLessonView() {
                 </div>
                 <div className="space-y-12">
                   {steps.step2.questions.map((q, qIdx) => (
-                    <div key={`step2-question-${qIdx}`} className="space-y-4">
+                    <div key={`step2-question-${q.question}-${qIdx}`} className="space-y-4">
                       <p className="text-lg font-bold text-slate-800">
                         <span className="text-indigo-600 mr-2">Question {qIdx + 1}:</span>
                         {q.question}
@@ -513,7 +513,7 @@ export default function WritingLessonView() {
                 </div>
                 <div className="space-y-12">
                   {steps.step3.paragraphs.map((p, pIdx) => (
-                    <div key={`step3-paragraph-${pIdx}`} className="space-y-6">
+                    <div key={`step3-paragraph-${p.text.substring(0, 20)}-${pIdx}`} className="space-y-6">
                       <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 leading-relaxed text-lg text-slate-700 shadow-inner">
                         {p.text}
                       </div>
@@ -523,7 +523,7 @@ export default function WritingLessonView() {
                           Sửa lỗi sai trong đoạn văn trên:
                         </h4>
                         {p.errors.map((err, eIdx) => (
-                          <div key={`step3-p${pIdx}-err-${eIdx}`} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                          <div key={`step3-paragraph-${pIdx}-error-${eIdx}-${err.original}`} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                             <div className="p-4 bg-red-50 rounded-xl border border-red-100 text-red-700 text-sm italic">
                               Lỗi: "{err.original}"
                             </div>
@@ -594,7 +594,7 @@ export default function WritingLessonView() {
                 </div>
                 <div className="space-y-12">
                   {steps.step4.questions.map((q, i) => (
-                    <div key={`step4-q-${i}`} className="space-y-4">
+                    <div key={`step4-q-${q.vietnamese}-${i}`} className="space-y-4">
                       <div className="p-6 bg-indigo-50 rounded-2xl border border-indigo-100">
                         <p className="text-lg font-bold text-indigo-900">{q.vietnamese}</p>
                       </div>
@@ -659,7 +659,7 @@ export default function WritingLessonView() {
                 </div>
                 <div className="space-y-12">
                   {steps.step5.paragraphs.map((p, pIdx) => (
-                    <div key={`step5-p-${pIdx}`} className="space-y-8">
+                    <div key={`step5-p-${p.topic}-${pIdx}`} className="space-y-8">
                       <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100">
                         <h4 className="text-lg font-bold text-amber-900 mb-2">Topic: {p.topic}</h4>
                         <div className="space-y-2 text-sm text-amber-700">

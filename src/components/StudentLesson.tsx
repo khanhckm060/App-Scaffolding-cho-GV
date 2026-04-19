@@ -718,7 +718,7 @@ export default function StudentLesson() {
                   <div className="space-y-8">
                     {lesson.sections ? (
                       lesson.sections.map((section, sIdx) => (
-                        <div key={sIdx} className="space-y-6">
+                        <div key={`section-${section.title}-${sIdx}`} className="space-y-6">
                           <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
                             <h3 className="text-xl font-bold text-indigo-900">{section.title}</h3>
                             {section.description && <p className="text-sm text-indigo-700 mt-1 italic">{section.description}</p>}
@@ -744,7 +744,7 @@ export default function StudentLesson() {
                               };
 
                               return (
-                                <div key={qIdx} className="p-6 rounded-2xl border border-slate-100 bg-slate-50/50">
+                                <div key={`question-${qKey}`} className="p-6 rounded-2xl border border-slate-100 bg-slate-50/50">
                                   <p className="font-bold text-slate-800 mb-4 flex items-start">
                                     <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 shrink-0 mt-0.5">{qIdx + 1}</span>
                                     {q.question}
@@ -754,7 +754,7 @@ export default function StudentLesson() {
                                     <div className="grid grid-cols-1 gap-3">
                                       {q.options.map((opt, optIdx) => (
                                         <button
-                                          key={optIdx}
+                                          key={`option-${qKey}-${optIdx}`}
                                           onClick={() => {
                                             if (readingChecked) return;
                                             const newAnswers = { ...answers.reading };
@@ -827,7 +827,7 @@ export default function StudentLesson() {
                       ))
                     ) : (
                       lesson.readingQuestions?.map((q, i) => (
-                        <div key={i} id={`question-${i}`} className="p-6 rounded-2xl border border-slate-100 bg-slate-50/50 scroll-mt-24">
+                        <div key={`rq-${q.question.substring(0, 20)}-${i}`} id={`question-${i}`} className="p-6 rounded-2xl border border-slate-100 bg-slate-50/50 scroll-mt-24">
                           <p className="font-bold text-slate-800 mb-4 flex items-start">
                             <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 shrink-0 mt-0.5">{i + 1}</span>
                             {q.question}
@@ -837,7 +837,7 @@ export default function StudentLesson() {
                             <div className="grid grid-cols-1 gap-3">
                               {q.options.map((opt, optIdx) => (
                                 <button
-                                  key={optIdx}
+                                  key={`rq-${i}-opt-${optIdx}`}
                                   onClick={() => {
                                     if (readingChecked) return;
                                     const newAnswers = [...(answers.reading || [])];
@@ -961,7 +961,7 @@ export default function StudentLesson() {
                   <div className="grid grid-cols-5 gap-1">
                     {lesson.readingQuestions?.map((_, i) => (
                       <button
-                        key={i}
+                        key={`q-grid-btn-${i}`}
                         onClick={() => {
                           const el = document.getElementById(`question-${i}`);
                           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1150,7 +1150,7 @@ export default function StudentLesson() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {(lesson.steps?.step1?.vocabulary || []).length > 0 ? (
                 (lesson.steps?.step1?.vocabulary || []).map((v, i) => (
-                  <div key={`step1-vocab-${v.word}-${i}`} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+                  <div key={`vocab-${v.word}-${i}`} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h3 className="text-2xl font-bold text-slate-900">{v.word}</h3>

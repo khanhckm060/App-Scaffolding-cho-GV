@@ -47,7 +47,32 @@ service cloud.firestore {
           "dongphongtlc@gmail.com",
           "caothity51@gmail.com",
           "nguyenthituyettrinh02032000@gmail.com",
-          "nguyen.tuyettrinh0203@gmail.com"
+          "nguyen.tuyettrinh0203@gmail.com",
+          "ngoaingumsthao@gmail.com",
+          "hongmainguyenthi002@gmail.com",
+          "nguyenhoanganh16082004@gmail.com",
+          "ms.nguyen.english171@gmail.com",
+          "nguyenthao49dn1@gmail.com",
+          "0312nguyendoantoquyen@gmail.com",
+          "thuanhvt0309@gmail.com",
+          "Ellie.ha1985@gmail.com",
+          "linhdt2808@gmail.com",
+          "kimdungle2406@gmail.com",
+          "damthom@gmail.com",
+          "thuyttn38@gmail.com",
+          "truonggiangphan85@gmail.com",
+          "doanbaohuy1997@gmail.com",
+          "hoang.tdhien@gmail.com",
+          "prudencedinh@gmail.com",
+          "englishwithmsevelyn@gmail.com",
+          "lhvon27@gmail.com",
+          "trathingan1984@gmail.com",
+          "Huong.nth.1208@gmail.com",
+          "phunguyenenglish@gmail.com",
+          "nguyengon196@gmail.com",
+          "vuongthanhhuyen90@gmail.com",
+          "mon09022004@gmail.com",
+          "Dandahull@gmail.com"
         ] && request.auth.token.email_verified == true);
     }
 

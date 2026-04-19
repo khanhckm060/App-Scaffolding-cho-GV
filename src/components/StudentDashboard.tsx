@@ -273,9 +273,9 @@ export default function StudentDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {todoAssignments.map((assign, i) => (
+            {todoAssignments.map((assign) => (
               <Link 
-                key={`todo-${assign.id || i}`}
+                key={`todo-assign-${assign.id || assign.lessonId}`}
                 to={`/lesson/${assign.lessonId}?assignmentId=${assign.id}`}
                 className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all group"
               >
@@ -326,17 +326,17 @@ export default function StudentDashboard() {
             <table className="w-full text-left">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th key="th-exercise" className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Exercise</th>
-                  <th key="th-class" className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Class</th>
-                  <th key="th-score" className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">Best Score</th>
-                  <th key="th-action" className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Action</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Exercise</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Class</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">Best Score</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {completedAssignments.map((assign, i) => {
+                {completedAssignments.map((assign) => {
                   const bestResult = results.find(r => r.lessonId === assign.lessonId);
                   return (
-                    <tr key={`done-${assign.id || i}`} className="hover:bg-slate-50 transition-colors">
+                    <tr key={`done-assign-${assign.id || assign.lessonId}`} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
                           <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-bold border border-slate-200">

@@ -508,10 +508,10 @@ export default function TeacherDashboard() {
                         <table className="w-full text-left border-collapse">
                           <thead>
                             <tr className="border-b border-slate-100">
-                              <th key="th-name" className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Họ tên</th>
-                              <th key="th-contact" className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Liên hệ</th>
-                              <th key="th-result" className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Kết quả gần nhất</th>
-                              <th key="th-action" className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Thao tác</th>
+                              <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Họ tên</th>
+                              <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Liên hệ</th>
+                              <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Kết quả gần nhất</th>
+                              <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Thao tác</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -520,10 +520,10 @@ export default function TeacherDashboard() {
                                 <td colSpan={4} className="py-8 text-center text-slate-400 italic">Chưa có học sinh trong lớp này.</td>
                               </tr>
                             ) : (
-                              classStudents.map((student, i) => {
+                              classStudents.map((student) => {
                                 const lastResult = results.filter(r => r.studentEmail === student.email).sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0];
                                 return (
-                                  <tr key={`student-${student.id || i}`} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                  <tr key={`student-row-${student.id || student.email}`} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                                     <td className="py-4 px-4">
                                       <p className="font-bold text-slate-800">{student.name}</p>
                                     </td>
@@ -601,7 +601,7 @@ export default function TeacherDashboard() {
                                 .map((assignment) => {
                                   const lesson = lessons.find(l => l.id === assignment.lessonId);
                                   return (
-                                    <th key={`header-assign-${assignment.id}`} className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center min-w-[120px]">
+                                    <th key={`header-assign-${assignment.id}-${assignment.createdAt}`} className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center min-w-[120px]">
                                       <div className="truncate w-24 mx-auto" title={lesson?.title}>
                                         {lesson?.title || 'Lesson'}
                                       </div>
@@ -619,7 +619,7 @@ export default function TeacherDashboard() {
                                 <td colSpan={10} className="py-8 text-center text-slate-400 italic">Chưa có học sinh.</td>
                               </tr>
                             ) : (
-                              classStudents.map((student, i) => {
+                              classStudents.map((student) => {
                                 const monthlyAssignments = classAssignments
                                   .filter(a => {
                                     const d = new Date(a.createdAt);
@@ -628,7 +628,7 @@ export default function TeacherDashboard() {
                                   .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
                                 return (
-                                  <tr key={`row-student-${student.id || i}`} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                  <tr key={`row-student-month-${student.id || student.email}`} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                                     <td className="py-4 px-4 sticky left-0 bg-white z-10 border-r border-slate-50">
                                       <p className="font-bold text-slate-800 text-sm truncate w-40">{student.name}</p>
                                     </td>
@@ -638,7 +638,7 @@ export default function TeacherDashboard() {
                                       const targetScore = (targetPercent / 100) * 10;
                                       
                                       return (
-                                        <td key={`cell-assign-${student.id}-${assignment.id}`} className="py-4 px-4 text-center">
+                                        <td key={`cell-assign-${student.id || student.email}-${assignment.id}`} className="py-4 px-4 text-center">
                                           {result ? (
                                             <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl font-bold text-sm ${result.score >= targetScore ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                               {result.score}
@@ -677,13 +677,13 @@ export default function TeacherDashboard() {
                       {classAssignments.length === 0 ? (
                         <p className="text-center py-8 text-slate-400 italic">Chưa giao bài tập nào cho lớp này.</p>
                       ) : (
-                        classAssignments.map((assignment, i) => {
+                        classAssignments.map((assignment) => {
                           const lesson = lessons.find(l => l.id === assignment.lessonId);
                           const completionCount = results.filter(r => r.assignmentId === assignment.id).length;
                           const isExpired = new Date(assignment.deadline) < new Date();
 
                           return (
-                            <div key={`list-assign-${assignment.id || i}`} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50">
+                            <div key={`list-assign-item-${assignment.id}`} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50">
                               <div className="flex items-center space-x-4">
                                 <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-indigo-600 shadow-sm">
                                   <BookOpen className="w-5 h-5" />
