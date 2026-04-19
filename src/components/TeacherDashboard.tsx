@@ -216,14 +216,18 @@ export default function TeacherDashboard() {
       createdAt: new Date().toISOString()
     });
 
-    // Notify students via API
+    // Email notification feature disabled for now
+    /*
     try {
       await fetch('/api/notify-assignment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           assignmentId: assignmentRef.id,
+          lessonId: selectedLessonForAssign.id,
           lessonTitle: selectedLessonForAssign.title || 'Bài tập mới',
+          classId: selectedClassId,
+          className: selectedClass.name,
           studentEmails,
           deadline: deadline.toISOString(),
           passingPercentage: assignPassingPercentage,
@@ -233,11 +237,12 @@ export default function TeacherDashboard() {
     } catch (err) {
       console.error("Failed to trigger notifications:", err);
     }
+    */
     
     setShowAssignModal(false);
     setSelectedLessonForAssign(null);
     fetchData(auth.currentUser.uid);
-    alert("Bài tập đã được giao! Thông báo đã được gửi tới email học viên (Simulated).");
+    alert("Bài tập đã được giao thành công!");
   };
 
   const deleteLesson = async (id: string) => {
@@ -593,10 +598,10 @@ export default function TeacherDashboard() {
                                   return d.getMonth() === selectedMonth.getMonth() && d.getFullYear() === selectedMonth.getFullYear();
                                 })
                                 .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-                                .map((assignment, i) => {
+                                .map((assignment) => {
                                   const lesson = lessons.find(l => l.id === assignment.lessonId);
                                   return (
-                                    <th key={`header-assign-${assignment.id || i}`} className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center min-w-[120px]">
+                                    <th key={`header-assign-${assignment.id}`} className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center min-w-[120px]">
                                       <div className="truncate w-24 mx-auto" title={lesson?.title}>
                                         {lesson?.title || 'Lesson'}
                                       </div>
@@ -627,13 +632,13 @@ export default function TeacherDashboard() {
                                     <td className="py-4 px-4 sticky left-0 bg-white z-10 border-r border-slate-50">
                                       <p className="font-bold text-slate-800 text-sm truncate w-40">{student.name}</p>
                                     </td>
-                                    {monthlyAssignments.map((assignment, j) => {
+                                    {monthlyAssignments.map((assignment) => {
                                       const result = results.find(r => r.studentEmail === student.email && r.assignmentId === assignment.id);
                                       const targetPercent = assignment.passingPercentage || 80;
                                       const targetScore = (targetPercent / 100) * 10;
                                       
                                       return (
-                                        <td key={`cell-assign-${assignment.id || j}`} className="py-4 px-4 text-center">
+                                        <td key={`cell-assign-${student.id}-${assignment.id}`} className="py-4 px-4 text-center">
                                           {result ? (
                                             <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl font-bold text-sm ${result.score >= targetScore ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                               {result.score}
@@ -768,12 +773,12 @@ export default function TeacherDashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {lessons.map((lesson, i) => (
+              {lessons.map((lesson) => (
                 <motion.div
-                  key={`lesson-${lesson.id || i}`}
+                  key={`lesson-${lesson.id}`}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
+                  transition={{ duration: 0.2 }}
                   className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden group"
                 >
                   <div className="p-6">
@@ -834,8 +839,8 @@ export default function TeacherDashboard() {
                       {lesson.vocabulary.length} Từ vựng
                     </span>
                     <div className="flex -space-x-2">
-                      {[1, 2, 3, 4].map(step => (
-                        <div key={step} className="w-6 h-6 rounded-full bg-white border-2 border-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400">
+                      {[1, 2, 3, 4, 5].map(step => (
+                        <div key={`step-indicator-${lesson.id}-${step}`} className="w-6 h-6 rounded-full bg-white border-2 border-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400">
                           {step}
                         </div>
                       ))}
@@ -1045,8 +1050,8 @@ export default function TeacherDashboard() {
                   {lessons.length === 0 ? (
                     <p className="text-center py-8 text-slate-400 italic">Bạn chưa tạo bài tập nào.</p>
                   ) : (
-                    lessons.map((lesson, i) => (
-                      <div key={`assign-lesson-${lesson.id || i}`} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 transition-all group">
+                    lessons.map((lesson) => (
+                      <div key={`assign-option-${lesson.id}`} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 transition-all group">
                         <div className="flex items-center space-x-4">
                           <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                             <BookOpen className="w-5 h-5" />
@@ -1234,16 +1239,19 @@ export default function TeacherDashboard() {
                   <span className="text-xl font-bold text-slate-900">Nghe</span>
                 </Link>
 
-                <Link 
-                  to="/teacher/new/reading"
-                  onClick={() => setShowCreateTypeModal(false)}
-                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
+                <div 
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 opacity-60 cursor-not-allowed group relative"
                 >
-                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
-                    <BookOpen className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                  <div className="bg-slate-100 p-4 rounded-2xl mb-4">
+                    <BookOpen className="w-8 h-8 text-slate-400" />
                   </div>
-                  <span className="text-xl font-bold text-slate-900">Đọc</span>
-                </Link>
+                  <span className="text-xl font-bold text-slate-400">Đọc</span>
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-3xl">
+                    <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-amber-200">
+                      Currently under maintenance
+                    </span>
+                  </div>
+                </div>
 
                 <button 
                   className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed"

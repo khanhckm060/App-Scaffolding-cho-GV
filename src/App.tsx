@@ -476,16 +476,19 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
                   <span className="text-xl font-bold text-slate-900">Nghe</span>
                 </Link>
 
-                <Link 
-                  to="/teacher/new/reading"
-                  onClick={() => setShowCreateOptions(false)}
-                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
+                <div 
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 opacity-60 cursor-not-allowed group relative"
                 >
-                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
-                    <BookOpen className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                  <div className="bg-slate-100 p-4 rounded-2xl mb-4">
+                    <BookOpen className="w-8 h-8 text-slate-400" />
                   </div>
-                  <span className="text-xl font-bold text-slate-900">Đọc</span>
-                </Link>
+                  <span className="text-xl font-bold text-slate-400">Đọc</span>
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-3xl">
+                    <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-amber-200">
+                      Currently under maintenance
+                    </span>
+                  </div>
+                </div>
 
                 <Link 
                   to="/teacher/new/writing"
@@ -523,7 +526,7 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
           { title: "Detailed Analytics", desc: "Track student progress, scores, and common mistakes across all skills.", icon: BarChart3 },
         ].map((feature, i) => (
           <motion.div 
-            key={i}
+            key={`feature-${feature.title.replace(/\s+/g, '-').toLowerCase()}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 + i * 0.1 }}

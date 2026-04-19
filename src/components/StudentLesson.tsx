@@ -1150,7 +1150,7 @@ export default function StudentLesson() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {(lesson.steps?.step1?.vocabulary || []).length > 0 ? (
                 (lesson.steps?.step1?.vocabulary || []).map((v, i) => (
-                  <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+                  <div key={`step1-vocab-${v.word}-${i}`} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h3 className="text-2xl font-bold text-slate-900">{v.word}</h3>
@@ -1357,7 +1357,7 @@ export default function StudentLesson() {
               <div className="grid grid-cols-2 gap-4">
                 {(lesson.steps?.step1_6?.questions?.[audioPracticeIndex]?.options || []).map((opt, i) => (
                   <button 
-                    key={i}
+                    key={`step3-q${audioPracticeIndex}-opt-${i}`}
                     onClick={() => {
                       if (lesson.steps?.step1_6?.questions?.[audioPracticeIndex] && i === lesson.steps.step1_6.questions[audioPracticeIndex].answer) {
                         speak("Correct");
@@ -1391,7 +1391,7 @@ export default function StudentLesson() {
             <StepHeader current={4} total={6} title="Phrase Dictation" icon={TypeIcon} />
             <div className="space-y-6">
               {(lesson.steps?.step2?.phrases || []).map((phrase, i) => (
-                <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <div key={`step4-phrase-${i}`} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                   <div className="flex items-center space-x-4">
                     <span className="text-2xl font-black text-slate-300 w-10">{(i + 1).toString().padStart(2, '0')}</span>
                     <div className="flex-1 flex space-x-2">
@@ -1443,7 +1443,7 @@ export default function StudentLesson() {
                             <>
                               {feedback.map((item: any, idx: number) => (
                                 <span 
-                                  key={idx}
+                                  key={`feedback-item-${idx}`}
                                   className={cn(
                                     "px-2 py-1 rounded font-bold text-lg",
                                     item.isCorrect ? "text-emerald-600" : "text-amber-500 bg-amber-50"
@@ -1536,7 +1536,7 @@ export default function StudentLesson() {
 
               <div className="whitespace-pre-wrap">
                 {(lesson.steps?.step3?.gapFillText || '').replace(/\[\d+\]/g, '[BLANK]').split('[BLANK]').map((part, i, arr) => (
-                  <span key={i}>
+                  <span key={`gapfill-part-${i}`}>
                     {part}
                     {i < arr.length - 1 && (
                       <input 
@@ -1643,12 +1643,12 @@ export default function StudentLesson() {
 
             <div className="space-y-6">
               {(lesson.steps?.step4?.questions || []).map((q, i) => (
-                <div key={i} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                <div key={`step6-q-${i}`} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
                   <h3 className="text-xl font-bold text-slate-900">{i + 1}. {q.question}</h3>
                   <div className="grid grid-cols-1 gap-3">
                     {(q.options || []).map((opt, optIdx) => (
                       <button 
-                        key={optIdx}
+                        key={`step6-q${i}-opt-${optIdx}`}
                         onClick={() => {
                           const newAnswers = [...answers.step6];
                           newAnswers[i] = optIdx;
@@ -1906,9 +1906,9 @@ function StepHeader({ current, total, title, icon: Icon }: { current: number, to
         </div>
       </div>
       <div className="flex space-x-2">
-        {[1, 2, 3, 4, 5].map(s => (
+        {[1, 2, 3, 4, 5, 6].map(s => (
           <div 
-            key={s} 
+            key={`step-progress-${s}`} 
             className={cn(
               "w-10 h-2 rounded-full transition-all duration-500",
               s <= current ? "bg-indigo-600" : "bg-slate-200"

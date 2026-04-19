@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, addDoc, collection } from 'firebase/firestore';
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../firebase';
 import { Lesson, Result } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/firestoreErrorHandler';
@@ -9,9 +10,9 @@ import {
   CheckCircle2, AlertCircle, ChevronRight, ChevronLeft, 
   BookOpen, Headphones, PenTool, Sparkles, Trophy, 
   Info, X, ArrowRight, Volume2, Search, Edit3, Languages,
-  Loader2
+  Loader2, Share2, AlertTriangle, ExternalLink
 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, isInAppBrowser } from '../lib/utils';
 import { 
   checkStep3Correction, 
   checkWritingGrammar, 
@@ -28,9 +29,48 @@ export default function WritingLessonView() {
   
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(0); // 0: Intro, 1-5: Steps
   const [completed, setCompleted] = useState(false);
   
+  // Auth state
+  const [user, setUser] = useState(auth.currentUser);
+  const [studentName, setStudentName] = useState('');
+  const [studentEmail, setStudentEmail] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      if (user) {
+        setStudentName(user.displayName || '');
+        setStudentEmail(user.email || '');
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    if (isInAppBrowser()) {
+      alert("Google không cho phép đăng nhập trong ứng dụng này (Zalo/Facebook/Messenger). Vui lòng copy link và mở bằng Chrome hoặc Safari để tiếp tục.");
+      return;
+    }
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      if (result.user) {
+        setStudentName(result.user.displayName || '');
+        setStudentEmail(result.user.email || '');
+      }
+    } catch (error: any) {
+      console.error("Error signing in with Google:", error);
+      if (error.code === 'auth/disallowed-useragent') {
+        setError("Trình duyệt này không được hỗ trợ. Vui lòng mở link bằng Chrome hoặc Safari.");
+      } else {
+        setError("Failed to sign in with Google. Please try again.");
+      }
+    }
+  };
+
   // State for answers
   const [step2Answers, setStep2Answers] = useState<number[]>([]);
   const [step3Answers, setStep3Answers] = useState<string[][]>([]); // Array of corrections for each paragraph
@@ -196,30 +236,35 @@ export default function WritingLessonView() {
   };
 
   const handleSubmit = async () => {
+    if (!lesson || !lessonId) return;
     const finalScore = calculateScore();
     setScore(finalScore);
     
-    if (auth.currentUser) {
-      try {
-        await addDoc(collection(db, 'results'), {
-          lessonId,
-          assignmentId,
-          studentName: auth.currentUser.displayName || 'Học sinh',
-          studentEmail: auth.currentUser.email,
-          score: finalScore,
-          details: {
-            writing_step2_correct: step2Answers.filter((ans, idx) => ans === lesson?.writingSteps?.step2.questions[idx].answer).length,
-            // ... add more details ...
-          },
-          completedAt: new Date().toISOString(),
-          teacherId: lesson?.teacherId
-        });
-      } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, 'results');
-      }
+    try {
+      const resultData: Partial<Result> = {
+        lessonId,
+        assignmentId: assignmentId || undefined,
+        studentName: studentName || user?.displayName || 'Anonymous',
+        studentEmail: studentEmail || user?.email || 'anonymous',
+        studentId: user?.uid,
+        score: finalScore,
+        teacherId: lesson.teacherId,
+        completedAt: new Date().toISOString(),
+        details: {
+          writing_step2_correct: step2Answers.filter((ans, idx) => ans === lesson?.writingSteps?.step2.questions[idx].answer).length,
+          writing_step3_correct: step3Results.flat().filter(r => r?.correct).length,
+          writing_step4_correct: step4Results.filter(r => r?.correct).length,
+          writing_step5_correct: step5Results.filter(r => r?.correct).length,
+          step1: true,
+          step2: true,
+        }
+      };
+
+      await addDoc(collection(db, 'results'), resultData);
+      setCompleted(true);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'results');
     }
-    
-    setCompleted(true);
   };
 
   if (loading) return <div className="text-center py-12">Đang tải bài học...</div>;
@@ -228,43 +273,136 @@ export default function WritingLessonView() {
   const steps = lesson.writingSteps;
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center space-x-4">
-          <div className="bg-indigo-600 p-3 rounded-xl text-white shadow-lg">
-            <PenTool className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">{lesson.title}</h2>
-            <div className="flex items-center space-x-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
-              <span>Step {currentStep} of 5</span>
-              <div className="w-32 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-indigo-600 transition-all duration-500" 
-                  style={{ width: `${(currentStep / 5) * 100}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-        <button 
-          onClick={() => navigate('/student')}
-          className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-        >
-          <X className="w-6 h-6 text-slate-400" />
-        </button>
-      </div>
-
+    <div className="min-h-screen bg-slate-50 py-12 px-4">
       <AnimatePresence mode="wait">
         {!completed ? (
-          <motion.div
-            key={currentStep}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="bg-white rounded-[2.5rem] p-8 md:p-12 border border-slate-200 shadow-xl"
-          >
+          currentStep === 0 ? (
+            <motion.div 
+              key="writing-intro"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.05 }}
+              className="max-w-4xl mx-auto bg-white p-10 rounded-3xl border border-slate-200 shadow-xl text-center"
+            >
+              <div className="bg-indigo-50 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-8">
+                <PenTool className="w-10 h-10 text-indigo-600" />
+              </div>
+              <h1 className="text-4xl font-extrabold text-slate-900 mb-4">{lesson?.title}</h1>
+              
+              {!user ? (
+                <div className="max-w-sm mx-auto space-y-6">
+                  {isInAppBrowser() && (
+                    <div className="bg-amber-50 border border-amber-200 p-6 rounded-2xl text-left mb-6">
+                      <div className="flex items-center space-x-2 text-amber-800 font-bold mb-3">
+                        <AlertTriangle className="w-5 h-5" />
+                        <span>Lưu ý quan trọng</span>
+                      </div>
+                      <p className="text-sm text-amber-700 mb-4 leading-relaxed">
+                        Bạn đang mở link trong ứng dụng (Zalo/Facebook). Google không cho phép đăng nhập tại đây. 
+                      </p>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(window.location.href);
+                          alert("Đã copy link! Vui lòng dán vào Chrome hoặc Safari.");
+                        }}
+                        className="w-full flex items-center justify-center space-x-2 bg-white border border-amber-200 text-amber-700 py-3 rounded-xl text-sm font-bold hover:bg-amber-50 transition-all shadow-sm"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span>Copy Link để mở Chrome/Safari</span>
+                      </button>
+                    </div>
+                  )}
+                  <p className="text-slate-500 text-lg">Vui lòng đăng nhập bằng Gmail để bắt đầu bài học viết chuyên sâu.</p>
+                  <button 
+                    onClick={handleGoogleSignIn}
+                    className="w-full flex items-center justify-center space-x-3 bg-white text-slate-700 border-2 border-slate-100 py-4 rounded-xl font-bold text-lg hover:bg-slate-50 hover:border-slate-200 transition-all shadow-sm active:scale-95"
+                  >
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
+                    <span>Đăng nhập với Google</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="max-w-sm mx-auto space-y-6">
+                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-left">
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Thông tin học viên</div>
+                    <div className="flex items-center space-x-4">
+                      {user.photoURL ? (
+                        <img src={user.photoURL} alt={user.displayName || ''} className="w-12 h-12 rounded-full border-2 border-white shadow-sm" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xl">
+                          {(user.displayName || 'U').charAt(0)}
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-bold text-slate-900">{user.displayName}</div>
+                        <div className="text-sm text-slate-500">{user.email}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentStep(1)}
+                    className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold text-xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center justify-center space-x-3 active:scale-95"
+                  >
+                    <span>Bắt đầu bài học</span>
+                    <ArrowRight className="w-6 h-6" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.href);
+                      alert("Đã copy link bài học!");
+                    }}
+                    className="flex items-center justify-center space-x-2 text-slate-400 hover:text-slate-600 font-bold text-sm transition-all mx-auto"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span>Share Lesson</span>
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="writing-lesson"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="max-w-5xl mx-auto"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center space-x-4">
+                  <div className="bg-indigo-600 p-3 rounded-xl text-white shadow-lg">
+                    <PenTool className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900">{lesson.title}</h2>
+                    <div className="flex items-center space-x-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                      <span>Step {currentStep} of 5</span>
+                      <div className="w-32 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-indigo-600 transition-all duration-500" 
+                          style={{ width: `${(currentStep / 5) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => navigate('/student')}
+                  className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6 text-slate-400" />
+                </button>
+              </div>
+
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentStep}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="bg-white rounded-[2.5rem] p-8 md:p-12 border border-slate-200 shadow-xl"
+                >
             {currentStep === 1 && (
               <div className="space-y-8">
                 <div className="flex items-center space-x-3 mb-6">
@@ -273,7 +411,7 @@ export default function WritingLessonView() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {steps.step1.vocabulary.map((vocab, i) => (
-                    <div key={i} className="p-6 rounded-3xl bg-slate-50 border border-slate-100 hover:border-indigo-200 transition-all group">
+                    <div key={`step1-vocab-${i}`} className="p-6 rounded-3xl bg-slate-50 border border-slate-100 hover:border-indigo-200 transition-all group">
                       <div className="flex justify-between items-start mb-2">
                         <h4 className="text-xl font-bold text-slate-900">{vocab.word}</h4>
                         <button 
@@ -306,7 +444,7 @@ export default function WritingLessonView() {
                 </div>
                 <div className="space-y-12">
                   {steps.step2.questions.map((q, qIdx) => (
-                    <div key={qIdx} className="space-y-4">
+                    <div key={`step2-question-${qIdx}`} className="space-y-4">
                       <p className="text-lg font-bold text-slate-800">
                         <span className="text-indigo-600 mr-2">Question {qIdx + 1}:</span>
                         {q.question}
@@ -314,7 +452,7 @@ export default function WritingLessonView() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {q.options.map((opt, oIdx) => (
                           <button
-                            key={oIdx}
+                            key={`step2-q${qIdx}-opt-${oIdx}`}
                             onClick={() => {
                               const newAns = [...step2Answers];
                               newAns[qIdx] = oIdx;
@@ -375,7 +513,7 @@ export default function WritingLessonView() {
                 </div>
                 <div className="space-y-12">
                   {steps.step3.paragraphs.map((p, pIdx) => (
-                    <div key={pIdx} className="space-y-6">
+                    <div key={`step3-paragraph-${pIdx}`} className="space-y-6">
                       <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 leading-relaxed text-lg text-slate-700 shadow-inner">
                         {p.text}
                       </div>
@@ -385,7 +523,7 @@ export default function WritingLessonView() {
                           Sửa lỗi sai trong đoạn văn trên:
                         </h4>
                         {p.errors.map((err, eIdx) => (
-                          <div key={eIdx} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                          <div key={`step3-p${pIdx}-err-${eIdx}`} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                             <div className="p-4 bg-red-50 rounded-xl border border-red-100 text-red-700 text-sm italic">
                               Lỗi: "{err.original}"
                             </div>
@@ -456,7 +594,7 @@ export default function WritingLessonView() {
                 </div>
                 <div className="space-y-12">
                   {steps.step4.questions.map((q, i) => (
-                    <div key={i} className="space-y-4">
+                    <div key={`step4-q-${i}`} className="space-y-4">
                       <div className="p-6 bg-indigo-50 rounded-2xl border border-indigo-100">
                         <p className="text-lg font-bold text-indigo-900">{q.vietnamese}</p>
                       </div>
@@ -521,7 +659,7 @@ export default function WritingLessonView() {
                 </div>
                 <div className="space-y-12">
                   {steps.step5.paragraphs.map((p, pIdx) => (
-                    <div key={pIdx} className="space-y-8">
+                    <div key={`step5-p-${pIdx}`} className="space-y-8">
                       <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100">
                         <h4 className="text-lg font-bold text-amber-900 mb-2">Topic: {p.topic}</h4>
                         <div className="space-y-2 text-sm text-amber-700">
@@ -612,6 +750,7 @@ export default function WritingLessonView() {
               <div className="flex items-center space-x-3">
                 {currentStep < 2 && (
                   <button
+                    key="btn-feedback"
                     onClick={() => setShowFeedback(!showFeedback)}
                     className={cn(
                       "px-6 py-3 rounded-xl font-bold transition-all flex items-center space-x-2",
@@ -625,6 +764,7 @@ export default function WritingLessonView() {
 
                 {currentStep < 5 ? (
                   <button
+                    key="btn-next"
                     onClick={() => {
                       setCurrentStep(prev => prev + 1);
                       setShowFeedback(false);
@@ -636,6 +776,7 @@ export default function WritingLessonView() {
                   </button>
                 ) : (
                   <button
+                    key="btn-finish"
                     onClick={handleSubmit}
                     className="flex items-center space-x-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
                   >
@@ -646,8 +787,11 @@ export default function WritingLessonView() {
               </div>
             </div>
           </motion.div>
-        ) : (
+        </AnimatePresence>
+      </motion.div>
+    )) : (
           <motion.div
+            key="writing-result"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white rounded-[3rem] p-12 text-center border border-slate-200 shadow-2xl"
