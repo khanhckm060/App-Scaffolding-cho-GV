@@ -98,7 +98,8 @@ const ALLOWED_TEACHERS = [
   "Duyen20091998@gmail.com",
   "hathi121220@gmail.com",
   "nguyendung20nt@gmail.com",
-  "tutor.thuyanh@gmail.com"
+  "tutor.thuyanh@gmail.com",
+  "Hanhptm.cantho@gmail.com"
 ];
 
 const MAINTENANCE_MODE = false;
