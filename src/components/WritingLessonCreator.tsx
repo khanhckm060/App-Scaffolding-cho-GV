@@ -32,6 +32,8 @@ export default function WritingLessonCreator() {
           ...lessonContent,
           type: 'writing',
           level: formData.level,
+          topic: formData.topic,
+          grammarPoint: formData.grammarPoint,
           teacherId: auth.currentUser.uid,
           createdAt: new Date().toISOString()
         });

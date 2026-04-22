@@ -18,6 +18,10 @@ import {
   checkWritingGrammar, 
   checkParagraphGrammar, 
   explainMCQAnswer,
+  regenerateWritingStep2,
+  regenerateWritingStep3,
+  regenerateWritingStep4,
+  regenerateWritingStep5,
   WritingCheckResult 
 } from '../services/gemini';
 
@@ -151,6 +155,126 @@ export default function WritingLessonView() {
     });
 
     return Math.round((earnedPoints / totalPoints) * 10);
+  };
+
+  const getStepScore = (stepNum: number) => {
+    if (!lesson?.writingSteps) return 0;
+    const steps = lesson.writingSteps;
+    
+    if (stepNum === 2) {
+      const total = steps.step2.questions.length;
+      const correct = step2Answers.reduce((acc, ans, idx) => 
+        acc + (ans === steps.step2.questions[idx].answer && step2ResultsVisibility[idx] ? 1 : 0), 0);
+      return (correct / total) * 100;
+    }
+    
+    if (stepNum === 3) {
+      let total = 0;
+      let correct = 0;
+      steps.step3.paragraphs.forEach((p, pIdx) => {
+        total += p.errors.length;
+        p.errors.forEach((err, eIdx) => {
+          if (step3Results[pIdx]?.[eIdx]?.correct) {
+            correct += 1;
+          }
+        });
+      });
+      return total === 0 ? 100 : (correct / total) * 100;
+    }
+
+    if (stepNum === 4) {
+      const total = steps.step4.questions.length;
+      const correct = step4Results.filter(r => r?.correct).length;
+      return (correct / total) * 100;
+    }
+
+    if (stepNum === 5) {
+      const total = steps.step5.paragraphs.length;
+      const correct = step5Results.filter(r => r?.correct).length;
+      return (correct / total) * 100;
+    }
+
+    return 100; // Default for other steps for now
+  };
+
+  const isStepCheckComplete = (stepNum: number) => {
+    if (!lesson?.writingSteps) return false;
+    const steps = lesson.writingSteps;
+
+    if (stepNum === 2) {
+      return step2ResultsVisibility.every(v => v);
+    }
+
+    if (stepNum === 3) {
+      return step3Results.every(para => para.every(res => res !== null));
+    }
+
+    if (stepNum === 4) {
+      return step4Results.every(res => res !== null);
+    }
+
+    if (stepNum === 5) {
+      return step5Results.every(res => res !== null);
+    }
+
+    return true;
+  };
+
+  const handleRedoStep = async (stepNum: number) => {
+    if (!lesson) return;
+    setChecking(`redo-${stepNum}`);
+    
+    try {
+      // We need some of the prompt params used to create the lesson
+      // Since it's stored in Firestore, we hope the topic/grammar/etc are either in the title or we extract from metadata
+      // For now, I'll assume we can pass some generic params or extract if they were saved.
+      // Looking at generateWritingLesson, it uses title, topic, vocabularyList, grammarPoint, level.
+      // We might not have these in the Lesson object directly if they weren't saved.
+      // Let me check Lesson interface in types.ts.
+      
+      // Wait, Lesson object has title, level, writingSteps. It DOES NOT have 'topic' or 'grammarPoint' explicitly.
+      // But maybe I can infer or I should have saved them.
+      // I'll try to use the lesson title as topic if topic is missing, and empty grammar point.
+      // BUT, usually these are in the prompt.
+      
+      const redoParams = {
+        title: lesson.title,
+        topic: lesson.topic || lesson.title, 
+        grammarPoint: lesson.grammarPoint || "",
+        level: lesson.level,
+        vocabularyList: lesson.vocabulary.map(v => v.word).join(', ')
+      };
+
+      const newLesson = { ...lesson };
+      if (stepNum === 2) {
+        const result = await regenerateWritingStep2(redoParams);
+        newLesson.writingSteps!.step2.questions = result.questions;
+        setStep2Answers(new Array(result.questions.length).fill(-1));
+        setStep2ResultsVisibility(new Array(result.questions.length).fill(false));
+        setStep2DynamicFeedback(new Array(result.questions.length).fill(''));
+      } else if (stepNum === 3) {
+        const result = await regenerateWritingStep3(redoParams);
+        newLesson.writingSteps!.step3.paragraphs = result.paragraphs;
+        setStep3Answers(result.paragraphs.map(p => new Array(p.errors.length).fill('')));
+        setStep3Results(result.paragraphs.map(p => new Array(p.errors.length).fill(null)));
+      } else if (stepNum === 4) {
+        const result = await regenerateWritingStep4(redoParams);
+        newLesson.writingSteps!.step4.questions = result.questions;
+        setStep4Answers(new Array(result.questions.length).fill(''));
+        setStep4Results(new Array(result.questions.length).fill(null));
+      } else if (stepNum === 5) {
+        const result = await regenerateWritingStep5(redoParams);
+        newLesson.writingSteps!.step5.paragraphs = result.paragraphs;
+        setStep5Answers(new Array(result.paragraphs.length).fill(''));
+        setStep5Results(new Array(result.paragraphs.length).fill(null));
+      }
+      
+      setLesson(newLesson);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setChecking(null);
+    }
   };
 
   const handleCheckStep2 = async (idx: number) => {
@@ -454,6 +578,7 @@ export default function WritingLessonView() {
                           <button
                             key={`step2-q${qIdx}-opt-${oIdx}`}
                             onClick={() => {
+                              if (step2ResultsVisibility[qIdx]) return;
                               const newAns = [...step2Answers];
                               newAns[qIdx] = oIdx;
                               setStep2Answers(newAns);
@@ -462,11 +587,13 @@ export default function WritingLessonView() {
                               newVis[qIdx] = false;
                               setStep2ResultsVisibility(newVis);
                             }}
+                            disabled={step2ResultsVisibility[qIdx]}
                             className={cn(
                               "p-4 rounded-2xl border-2 text-left transition-all font-medium",
                               step2Answers[qIdx] === oIdx 
                                 ? "border-indigo-600 bg-indigo-50 text-indigo-700" 
-                                : "border-slate-100 hover:border-slate-200 text-slate-600"
+                                : "border-slate-100 hover:border-slate-200 text-slate-600",
+                              step2ResultsVisibility[qIdx] && "cursor-not-allowed opacity-80"
                             )}
                           >
                             <span className="inline-block w-8 h-8 rounded-lg bg-white border border-slate-200 text-center leading-8 mr-3 font-bold">
@@ -480,7 +607,7 @@ export default function WritingLessonView() {
                       <div className="flex justify-start">
                         <button
                           onClick={() => handleCheckStep2(qIdx)}
-                          disabled={checking !== null || step2Answers[qIdx] === -1}
+                          disabled={checking !== null || step2Answers[qIdx] === -1 || step2ResultsVisibility[qIdx]}
                           className="px-6 py-2 bg-indigo-50 text-indigo-600 rounded-xl font-bold hover:bg-indigo-100 disabled:opacity-50 transition-all flex items-center space-x-2"
                         >
                           {checking === `step2-${qIdx}` ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4" />}
@@ -496,7 +623,13 @@ export default function WritingLessonView() {
                           <p className="font-bold mb-1">
                             {step2Answers[qIdx] === q.answer ? "Chính xác!" : "Chưa đúng."}
                           </p>
-                          <p className="opacity-90">{step2DynamicFeedback[qIdx] || q.explanation}</p>
+                          <p className="opacity-95 leading-relaxed">{step2DynamicFeedback[qIdx] || q.explanation}</p>
+                          {step2Answers[qIdx] !== q.answer && (
+                            <div className="mt-3 pt-3 border-t border-red-100">
+                              <p className="font-bold">Đáp án đúng: {String.fromCharCode(65 + q.answer)}. {q.options[q.answer]}</p>
+                              <p className="text-xs opacity-80 mt-1">{q.explanation}</p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -532,6 +665,7 @@ export default function WritingLessonView() {
                                 <input 
                                   type="text"
                                   value={step3Answers[pIdx][eIdx]}
+                                  disabled={step3Results[pIdx][eIdx] !== null}
                                   onChange={e => {
                                     const newAns = [...step3Answers];
                                     newAns[pIdx][eIdx] = e.target.value;
@@ -544,12 +678,13 @@ export default function WritingLessonView() {
                                   placeholder="Nhập bản sửa lỗi..."
                                   className={cn(
                                     "flex-1 px-4 py-3 rounded-xl border-2 outline-none transition-all",
-                                    step3Results[pIdx][eIdx]?.correct ? "border-emerald-500 bg-emerald-50" : "border-slate-100 focus:border-indigo-500"
+                                    step3Results[pIdx][eIdx]?.correct ? "border-emerald-500 bg-emerald-50" : "border-slate-100 focus:border-indigo-500",
+                                    step3Results[pIdx][eIdx] !== null && "bg-slate-50 cursor-not-allowed"
                                   )}
                                 />
                                 <button
                                   onClick={() => handleCheckStep3(pIdx, eIdx)}
-                                  disabled={checking !== null || !step3Answers[pIdx][eIdx].trim()}
+                                  disabled={checking !== null || !step3Answers[pIdx][eIdx].trim() || step3Results[pIdx][eIdx] !== null}
                                   className="px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center"
                                 >
                                   {checking === `step3-${pIdx}-${eIdx}` ? (
@@ -559,21 +694,23 @@ export default function WritingLessonView() {
                                   )}
                                 </button>
                               </div>
-                              {step3Results[pIdx][eIdx] && (
+                              { (step3Results[pIdx][eIdx] || showFeedback) && (
                                 <div className={cn(
                                   "p-3 rounded-xl text-xs",
                                   step3Results[pIdx][eIdx]?.correct ? "bg-emerald-100 text-emerald-800" : "bg-red-50 text-red-700 border border-red-100"
                                 )}>
                                   <div className="flex items-start space-x-2">
-                                    {step3Results[pIdx][eIdx]?.correct ? <CheckCircle2 className="w-3 h-3 mt-0.5" /> : <AlertCircle className="w-3 h-3 mt-0.5" />}
-                                    <p>{step3Results[pIdx][eIdx]?.feedback}</p>
+                                    { (step3Results[pIdx][eIdx]?.correct || (step3Results[pIdx][eIdx] === null && showFeedback)) ? <CheckCircle2 className="w-3 h-3 mt-0.5" /> : <AlertCircle className="w-3 h-3 mt-0.5" />}
+                                    <p>
+                                      {step3Results[pIdx][eIdx]?.feedback || (showFeedback && `Đáp án đúng: ${err.correction}. ${err.explanation}`)}
+                                    </p>
                                   </div>
-                                </div>
-                              )}
-                              {showFeedback && (
-                                <div className="p-3 bg-slate-100 rounded-xl text-xs text-slate-700">
-                                  <p className="font-bold">Đáp án: {err.correction}</p>
-                                  <p className="opacity-80">{err.explanation}</p>
+                                  { !step3Results[pIdx][eIdx]?.correct && step3Results[pIdx][eIdx] !== null && (
+                                    <div className="mt-2 pt-2 border-t border-red-100">
+                                      <p className="font-bold">Đáp án đúng: {err.correction}</p>
+                                      <p className="opacity-80">{err.explanation}</p>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -601,6 +738,7 @@ export default function WritingLessonView() {
                       <div className="relative">
                         <textarea 
                           value={step4Answers[i]}
+                          disabled={step4Results[i] !== null}
                           onChange={e => {
                             const newAns = [...step4Answers];
                             newAns[i] = e.target.value;
@@ -617,7 +755,7 @@ export default function WritingLessonView() {
                         />
                         <button
                           onClick={() => handleCheckStep4(i)}
-                          disabled={checking !== null || !step4Answers[i].trim()}
+                          disabled={checking !== null || !step4Answers[i].trim() || step4Results[i] !== null}
                           className="absolute bottom-4 right-4 px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center"
                         >
                           {checking === `step4-${i}` ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <PenTool className="w-4 h-4 mr-2" />}
@@ -634,6 +772,12 @@ export default function WritingLessonView() {
                             <div>
                               <p className="font-bold mb-2">{step4Results[i]?.correct ? "Chính xác!" : "Cần chỉnh sửa:"}</p>
                               <p className="text-sm mb-4">{step4Results[i]?.feedback}</p>
+                              {step4Results[i]?.suggestedCorrection && (
+                                <div className="mt-4 p-4 bg-white/50 rounded-xl border border-white/30">
+                                  <p className="text-xs font-bold uppercase tracking-wider mb-2 opacity-60">Gợi ý chỉnh sửa:</p>
+                                  <p className="font-medium">{step4Results[i]?.suggestedCorrection}</p>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -676,6 +820,7 @@ export default function WritingLessonView() {
                         <div className="relative">
                           <textarea 
                             value={step5Answers[pIdx]}
+                            disabled={step5Results[pIdx] !== null}
                             onChange={e => {
                               const newAns = [...step5Answers];
                               newAns[pIdx] = e.target.value;
@@ -692,7 +837,7 @@ export default function WritingLessonView() {
                           />
                           <button
                             onClick={() => handleCheckStep5(pIdx)}
-                            disabled={checking !== null || !step5Answers[pIdx].trim()}
+                            disabled={checking !== null || !step5Answers[pIdx].trim() || step5Results[pIdx] !== null}
                             className="absolute bottom-6 right-6 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center shadow-lg"
                           >
                             {checking === `step5-${pIdx}` ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Languages className="w-5 h-5 mr-2" />}
@@ -711,6 +856,12 @@ export default function WritingLessonView() {
                             <div>
                               <h5 className="text-xl font-bold mb-3">{step5Results[pIdx]?.correct ? "Đoạn văn đạt yêu cầu!" : "Lưu ý về ngữ pháp & nội dung:"}</h5>
                               <p className="text-slate-700 leading-relaxed mb-6 whitespace-pre-wrap">{step5Results[pIdx]?.feedback}</p>
+                              {step5Results[pIdx]?.suggestedCorrection && (
+                                <div className="bg-white/50 p-6 rounded-2xl border border-white/30">
+                                  <p className="text-xs font-bold uppercase tracking-wider mb-3 opacity-60">Đoạn văn gợi ý chỉnh sửa:</p>
+                                  <p className="text-slate-800 leading-relaxed italic">{step5Results[pIdx]?.suggestedCorrection}</p>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -763,17 +914,39 @@ export default function WritingLessonView() {
                 )}
 
                 {currentStep < 5 ? (
-                  <button
-                    key="btn-next"
-                    onClick={() => {
-                      setCurrentStep(prev => prev + 1);
-                      setShowFeedback(false);
-                    }}
-                    className="flex items-center space-x-2 px-8 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg"
-                  >
-                    <span>Tiếp theo</span>
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
+                  isStepCheckComplete(currentStep) ? (
+                    getStepScore(currentStep) >= 80 ? (
+                      <button
+                        key="btn-next"
+                        onClick={() => {
+                          setCurrentStep(prev => prev + 1);
+                          setShowFeedback(false);
+                        }}
+                        className="flex items-center space-x-2 px-8 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg"
+                      >
+                        <span>Tiếp theo</span>
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    ) : (
+                      <button
+                        key="btn-redo"
+                        onClick={() => handleRedoStep(currentStep)}
+                        disabled={checking?.startsWith('redo')}
+                        className="flex items-center space-x-2 px-8 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg"
+                      >
+                        {checking?.startsWith('redo') ? (
+                          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 mr-2" />
+                        )}
+                        <span>Điểm ({Math.round(getStepScore(currentStep))}%) thấp hơn 80%. Làm lại bài tương tự</span>
+                      </button>
+                    )
+                  ) : (
+                    <div className="text-sm font-medium text-amber-600 bg-amber-50 px-4 py-2 rounded-lg border border-amber-100">
+                      Hãy check hết các câu hỏi ở Step này
+                    </div>
+                  )
                 ) : (
                   <button
                     key="btn-finish"

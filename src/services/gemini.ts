@@ -451,6 +451,218 @@ Output in JSON format with this structure:
   return JSON.parse(responseText);
 }
 
+export async function regenerateWritingStep2(params: WritingLessonParams): Promise<{ questions: any[] }> {
+  const prompt = `Role: English teacher.
+  Topic: ${params.topic}
+  Grammar Point: ${params.grammarPoint}
+  Vocabulary: ${params.vocabularyList}
+  Level: ${params.level}
+
+  Task: Create 10 NEW multiple-choice questions (A, B, C, D) different from before but matching the same requirements.
+  Include detailed Vietnamese explanations.
+
+  Return ONLY JSON:
+  {
+    "questions": [
+      { "question": "string", "options": ["string", "string", "string", "string"], "answer": 0, "explanation": "string" }
+    ]
+  }`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          questions: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                question: { type: Type.STRING },
+                options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                answer: { type: Type.NUMBER },
+                explanation: { type: Type.STRING }
+              },
+              required: ["question", "options", "answer", "explanation"]
+            }
+          }
+        },
+        required: ["questions"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+}
+
+export async function regenerateWritingStep3(params: WritingLessonParams): Promise<{ paragraphs: any[] }> {
+  const prompt = `Role: English teacher.
+  Topic: ${params.topic}
+  Grammar Point: ${params.grammarPoint}
+  Vocabulary: ${params.vocabularyList}
+  Level: ${params.level}
+
+  Task: Create 2 NEW paragraphs (3-5 sentences each) with 3-5 grammar errors specifically about "${params.grammarPoint}".
+  Ensure accuracy between original, correction, and explanation.
+
+  Return ONLY JSON:
+  {
+    "paragraphs": [
+      { "text": "string", "errors": [{ "original": "string", "correction": "string", "explanation": "string" }] }
+    ]
+  }`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          paragraphs: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                text: { type: Type.STRING },
+                errors: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      original: { type: Type.STRING },
+                      correction: { type: Type.STRING },
+                      explanation: { type: Type.STRING }
+                    },
+                    required: ["original", "correction", "explanation"]
+                  }
+                }
+              },
+              required: ["text", "errors"]
+            }
+          }
+        },
+        required: ["paragraphs"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+}
+
+export async function regenerateWritingStep4(params: WritingLessonParams): Promise<{ questions: any[] }> {
+  const prompt = `Role: English teacher.
+  Topic: ${params.topic}
+  Grammar Point: ${params.grammarPoint}
+  Vocabulary: ${params.vocabularyList}
+  Level: ${params.level}
+
+  Task: Create 5 NEW sentences in Vietnamese for translation into English. 
+  Ensure they use the target grammar and vocabulary.
+
+  Return ONLY JSON:
+  {
+    "questions": [{ "vietnamese": "string", "english": "string", "explanation": "string" }]
+  }`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          questions: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                vietnamese: { type: Type.STRING },
+                english: { type: Type.STRING },
+                explanation: { type: Type.STRING }
+              },
+              required: ["vietnamese", "english", "explanation"]
+            }
+          }
+        },
+        required: ["questions"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+}
+
+export async function regenerateWritingStep5(params: WritingLessonParams): Promise<{ paragraphs: any[] }> {
+  const prompt = `Role: English teacher.
+  Topic: ${params.topic}
+  Grammar Point: ${params.grammarPoint}
+  Vocabulary: ${params.vocabularyList}
+  Level: ${params.level}
+
+  Task: Create 1 NEW IELTS paragraph topic and sample (3 sentences: Topic, Support, Example).
+  
+  Return ONLY JSON:
+  {
+    "paragraphs": [{ 
+      "topic": "string", 
+      "vietnamese": { "topicSentence": "string", "supportingSentence": "string", "example": "string" },
+      "english": { "topicSentence": "string", "supportingSentence": "string", "example": "string" },
+      "explanation": "string"
+    }]
+  }`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          paragraphs: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                topic: { type: Type.STRING },
+                vietnamese: {
+                  type: Type.OBJECT,
+                  properties: {
+                    topicSentence: { type: Type.STRING },
+                    supportingSentence: { type: Type.STRING },
+                    example: { type: Type.STRING }
+                  },
+                  required: ["topicSentence", "supportingSentence", "example"]
+                },
+                english: {
+                  type: Type.OBJECT,
+                  properties: {
+                    topicSentence: { type: Type.STRING },
+                    supportingSentence: { type: Type.STRING },
+                    example: { type: Type.STRING }
+                  },
+                  required: ["topicSentence", "supportingSentence", "example"]
+                },
+                explanation: { type: Type.STRING }
+              },
+              required: ["topic", "vietnamese", "english", "explanation"]
+            }
+          }
+        },
+        required: ["paragraphs"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+}
+
 export interface WritingCheckResult {
   correct: boolean;
   score?: number; // 0-100

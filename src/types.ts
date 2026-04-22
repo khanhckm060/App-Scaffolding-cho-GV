@@ -113,6 +113,8 @@ export interface Lesson {
   audioStart?: number;
   audioEnd?: number;
   vocabulary: VocabularyItem[];
+  topic?: string; // For writing/reading context
+  grammarPoint?: string; // For writing context
   steps?: ScaffoldingSteps; // For listening
   writingSteps?: WritingSteps; // For writing
   readingQuestions?: ReadingQuestion[]; // For reading (legacy or flat)

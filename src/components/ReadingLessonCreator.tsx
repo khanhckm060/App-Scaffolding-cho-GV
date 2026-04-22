@@ -173,6 +173,9 @@ export default function ReadingLessonCreator() {
       }
 
       prompt += `
+           For 'gapFill' questions, always specify a word limit (e.g., 'No more than 2 or 3 words').
+           For 'trueFalse' questions, use the 'True', 'False', and 'Not Given' format.
+           
            Return the result in JSON format with the following structure:
            {
              "lessons": [

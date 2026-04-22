@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { doc, getDoc, addDoc, collection } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth';
@@ -45,6 +45,17 @@ export default function StudentLesson() {
   const [recognizedText, setRecognizedText] = useState("");
   const [readingChecked, setReadingChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [highlights, setHighlights] = useState<{ start: number; end: number; color: string }[]>([]);
+  const [activeHighlightColor, setActiveHighlightColor] = useState<string>('yellow');
+  const [showHighlightMenu, setShowHighlightMenu] = useState<{ x: number, y: number } | null>(null);
+  const [tempSelection, setTempSelection] = useState<Range | null>(null);
+  const passageRef = useRef<HTMLDivElement>(null);
+
+  const colors = {
+    yellow: 'bg-yellow-200 text-slate-900',
+    green: 'bg-emerald-200 text-slate-900',
+    blue: 'bg-sky-200 text-slate-900',
+  };
   const [error, setError] = useState<string | null>(null);
   const [gapFillChecked, setGapFillChecked] = useState(false);
   const [mcqChecked, setMcqChecked] = useState(false);
@@ -151,6 +162,81 @@ export default function StudentLesson() {
         audio.currentTime = lesson.audioStart || 0;
       }
     }
+  };
+
+  const handlePassageSelection = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      setShowHighlightMenu(null);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    // Check if selection is within the passage
+    if (passageRef.current && (passageRef.current.contains(range.commonAncestorContainer) || passageRef.current === range.commonAncestorContainer)) {
+      const rect = range.getBoundingClientRect();
+      setTempSelection(range.cloneRange());
+      setShowHighlightMenu({
+        x: rect.left + rect.width / 2,
+        y: rect.top + window.scrollY - 10
+      });
+    }
+  };
+
+  const addHighlight = (color: string) => {
+    if (!tempSelection || !passageRef.current) return;
+
+    const range = tempSelection;
+    const preSelectionRange = range.cloneRange();
+    preSelectionRange.selectNodeContents(passageRef.current);
+    preSelectionRange.setEnd(range.startContainer, range.startOffset);
+    const start = preSelectionRange.toString().length;
+    const end = start + range.toString().length;
+
+    setHighlights([...highlights, { start, end, color }]);
+    setShowHighlightMenu(null);
+    setTempSelection(null);
+    window.getSelection()?.removeAllRanges();
+  };
+
+  const clearHighlights = () => {
+    setHighlights([]);
+    setShowHighlightMenu(null);
+  };
+
+  const renderHighlightedText = (text: string) => {
+    if (!text) return null;
+    if (highlights.length === 0) return text;
+
+    // Sort highlights by start position
+    const sorted = [...highlights].sort((a, b) => a.start - b.start);
+    
+    // Merge overlapping highlights or just render them in order
+    const result: React.ReactNode[] = [];
+    let lastIndex = 0;
+
+    sorted.forEach((h, idx) => {
+      if (h.start < lastIndex) return; // Skip overlapping for simplicity
+
+      // Add text before highlight
+      if (h.start > lastIndex) {
+        result.push(text.substring(lastIndex, h.start));
+      }
+
+      // Add highlighted text
+      result.push(
+        <mark key={`h-${idx}`} className={cn(colors[h.color as keyof typeof colors], "rounded-sm px-0.5")}>
+          {text.substring(h.start, h.end)}
+        </mark>
+      );
+      lastIndex = h.end;
+    });
+
+    if (lastIndex < text.length) {
+      result.push(text.substring(lastIndex));
+    }
+
+    return result;
   };
 
   const checkDictation = (index: number) => {
@@ -591,8 +677,8 @@ export default function StudentLesson() {
             section.questions.forEach((q, qIdx) => {
               total++;
               const userAns = answers.reading[`${sIdx}-${qIdx}`];
-              const userStr = String(userAns || '').toLowerCase().trim();
-              const correctStr = String(q.answer || '').toLowerCase().trim();
+              const userStr = String(userAns !== undefined ? userAns : '').toLowerCase().trim();
+              const correctStr = String(q.answer !== undefined ? q.answer : '').toLowerCase().trim();
               
               if (userStr === correctStr) {
                 correct++;
@@ -612,13 +698,16 @@ export default function StudentLesson() {
           details.reading = correct;
           details.total_reading = total;
         } else {
+          details.total_reading = lesson.readingQuestions?.length || 0;
           details.reading = (answers.reading || []).filter((a: any, i: number) => {
             const q = lesson.readingQuestions?.[i];
             if (!q) return false;
-            if (q.type === 'multipleChoice') return a === q.answer;
-            const userStr = String(a || '').toLowerCase().trim();
-            const correctStr = String(q.answer).toLowerCase().trim();
+            
+            const userStr = String(a !== undefined ? a : '').toLowerCase().trim();
+            const correctStr = String(q.answer !== undefined ? q.answer : '').toLowerCase().trim();
+            
             if (userStr === correctStr) return true;
+            
             const correctWords = correctStr.split(/\s+/).filter(w => w.length > 0);
             if (correctWords.length > 3) {
               const userWords = userStr.split(/\s+/).filter(w => w.length > 0);
@@ -701,9 +790,42 @@ export default function StudentLesson() {
                     </div>
                     <h1 className="text-2xl font-bold">{lesson.title}</h1>
                   </div>
-                  <div className="p-8 max-h-[calc(100vh-200px)] overflow-y-auto leading-relaxed text-lg text-slate-700 whitespace-pre-wrap scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                    {lesson.passage || lesson.sections?.map(s => s.description).filter(Boolean).join('\n\n')}
-                  </div>
+                    <div 
+                      ref={passageRef}
+                      onMouseUp={handlePassageSelection}
+                      className="p-8 max-h-[calc(100vh-200px)] overflow-y-auto leading-relaxed text-lg text-slate-700 whitespace-pre-wrap scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent relative selection:bg-indigo-100"
+                    >
+                      {lesson.passage 
+                        ? renderHighlightedText(lesson.passage)
+                        : renderHighlightedText(lesson.sections?.map(s => s.description).filter(Boolean).join('\n\n') || '')
+                      }
+
+                      <AnimatePresence>
+                        {showHighlightMenu && (
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                            style={{ 
+                              position: 'absolute',
+                              left: `${showHighlightMenu.x}px`,
+                              top: `${showHighlightMenu.y}px`,
+                              transform: 'translate(-50%, -100%)',
+                              zIndex: 100
+                            }}
+                            className="bg-white rounded-full shadow-2xl border border-slate-200 p-1.5 flex items-center space-x-2"
+                          >
+                            <button onClick={() => addHighlight('yellow')} className="w-8 h-8 rounded-full bg-yellow-400 hover:scale-110 transition-transform shadow-inner" />
+                            <button onClick={() => addHighlight('green')} className="w-8 h-8 rounded-full bg-emerald-400 hover:scale-110 transition-transform shadow-inner" />
+                            <button onClick={() => addHighlight('blue')} className="w-8 h-8 rounded-full bg-sky-400 hover:scale-110 transition-transform shadow-inner" />
+                            <div className="w-px h-6 bg-slate-200 mx-1" />
+                            <button onClick={clearHighlights} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
+                              <X className="w-5 h-5" />
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                 </div>
               </div>
 
@@ -727,10 +849,10 @@ export default function StudentLesson() {
                             {section.questions.map((q, qIdx) => {
                               const qKey = `${sIdx}-${qIdx}`;
                               const isCorrect = (userAns: any, correctAns: any, type: string) => {
-                                if (type === 'multipleChoice') return userAns === correctAns;
-                                const userStr = String(userAns || '').toLowerCase().trim();
-                                const correctStr = String(correctAns || '').toLowerCase().trim();
+                                const userStr = String(userAns !== undefined ? userAns : '').toLowerCase().trim();
+                                const correctStr = String(correctAns !== undefined ? correctAns : '').toLowerCase().trim();
                                 if (userStr === correctStr) return true;
+                                
                                 const correctWords = correctStr.split(/\s+/).filter(w => w.length > 0);
                                 if (correctWords.length > 3) {
                                   const userWords = userStr.split(/\s+/).filter(w => w.length > 0);
@@ -744,11 +866,23 @@ export default function StudentLesson() {
                               };
 
                               return (
-                                <div key={`question-${qKey}`} className="p-6 rounded-2xl border border-slate-100 bg-slate-50/50">
-                                  <p className="font-bold text-slate-800 mb-4 flex items-start">
-                                    <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 shrink-0 mt-0.5">{qIdx + 1}</span>
-                                    {q.question}
-                                  </p>
+                                <div key={`question-${qKey}`} id={`question-${qKey}`} className="p-6 rounded-2xl border border-slate-100 bg-slate-50/50 scroll-mt-24">
+                                  <div className="flex flex-col mb-4">
+                                    <p className="font-bold text-slate-800 flex items-start">
+                                      <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 shrink-0 mt-0.5">{qIdx + 1}</span>
+                                      {q.question}
+                                    </p>
+                                    {q.type === 'trueFalse' && (
+                                      <p className="text-[10px] font-bold text-indigo-500 mt-1 ml-9 uppercase tracking-wider italic text-left">
+                                        Hướng dẫn: Điền TRUE, FALSE hoặc NOT GIVEN.
+                                      </p>
+                                    )}
+                                    {q.type === 'gapFill' && (
+                                      <p className="text-[10px] font-bold text-indigo-500 mt-1 ml-9 uppercase tracking-wider italic text-left">
+                                        Hướng dẫn: Điền từ vào ô trống (Không quá 3 từ).
+                                      </p>
+                                    )}
+                                  </div>
 
                                   {q.type === 'multipleChoice' && q.options && (
                                     <div className="grid grid-cols-1 gap-3">
@@ -763,13 +897,13 @@ export default function StudentLesson() {
                                           }}
                                           className={cn(
                                             "text-left p-4 rounded-xl border-2 transition-all font-medium",
-                                            answers.reading[qKey] === optIdx
+                                            String(answers.reading[qKey]) === String(optIdx)
                                               ? readingChecked
-                                                ? optIdx === q.answer
+                                                ? String(optIdx) === String(q.answer)
                                                   ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                                                   : "border-red-500 bg-red-50 text-red-700"
                                                 : "border-indigo-600 bg-indigo-50 text-indigo-700"
-                                              : readingChecked && optIdx === q.answer
+                                              : readingChecked && String(optIdx) === String(q.answer)
                                                 ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                                                 : "border-slate-100 bg-white text-slate-600 hover:border-slate-200"
                                           )}
@@ -828,10 +962,22 @@ export default function StudentLesson() {
                     ) : (
                       lesson.readingQuestions?.map((q, i) => (
                         <div key={`rq-${q.question.substring(0, 20)}-${i}`} id={`question-${i}`} className="p-6 rounded-2xl border border-slate-100 bg-slate-50/50 scroll-mt-24">
-                          <p className="font-bold text-slate-800 mb-4 flex items-start">
-                            <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 shrink-0 mt-0.5">{i + 1}</span>
-                            {q.question}
-                          </p>
+                          <div className="flex flex-col mb-4">
+                            <p className="font-bold text-slate-800 flex items-start">
+                              <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 shrink-0 mt-0.5">{i + 1}</span>
+                              {q.question}
+                            </p>
+                            {q.type === 'trueFalse' && (
+                              <p className="text-[10px] font-bold text-indigo-500 mt-1 ml-9 uppercase tracking-wider italic">
+                                Hướng dẫn: Điền TRUE, FALSE hoặc NOT GIVEN.
+                              </p>
+                            )}
+                            {q.type === 'gapFill' && (
+                              <p className="text-[10px] font-bold text-indigo-500 mt-1 ml-9 uppercase tracking-wider italic">
+                                Hướng dẫn: Điền từ vào ô trống (No more than 3 words).
+                              </p>
+                            )}
+                          </div>
 
                           {q.type === 'multipleChoice' && q.options && (
                             <div className="grid grid-cols-1 gap-3">
@@ -846,13 +992,13 @@ export default function StudentLesson() {
                                   }}
                                   className={cn(
                                     "text-left p-4 rounded-xl border-2 transition-all font-medium",
-                                    answers.reading[i] === optIdx
+                                    String(answers.reading[i]) === String(optIdx)
                                       ? readingChecked
-                                        ? optIdx === q.answer
+                                        ? String(optIdx) === String(q.answer)
                                           ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                                           : "border-red-500 bg-red-50 text-red-700"
                                         : "border-indigo-600 bg-indigo-50 text-indigo-700"
-                                      : readingChecked && optIdx === q.answer
+                                      : readingChecked && String(optIdx) === String(q.answer)
                                         ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                                         : "border-slate-100 bg-white text-slate-600 hover:border-slate-200"
                                   )}
