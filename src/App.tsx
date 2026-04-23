@@ -345,24 +345,13 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home user={user} login={login} isLoggingIn={isLoggingIn} />} />
             <Route path="/teacher" element={user ? (
-              ALLOWED_TEACHERS.includes(user.email || '') ? (
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><TeacherDashboard /></div>
-              ) : (
-                <div className="max-w-xl mx-auto px-4 py-20 text-center">
-                  <div className="bg-amber-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                    <AlertTriangle className="w-10 h-10 text-amber-600" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-slate-900 mb-4">Quyền truy cập bị hạn chế</h2>
-                  <p className="text-slate-600 mb-8">Hệ thống đang trong quá trình bảo trì và nâng cấp. Hiện tại chỉ những tài khoản được cấp phép mới có thể truy cập Dashboard và tạo bài tập.</p>
-                  <Link to="/" className="inline-block bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all">Quay lại Trang chủ</Link>
-                </div>
-              )
             ) : <Navigate to="/" />} />
             <Route path="/student" element={<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><StudentDashboard /></div>} />
-            <Route path="/teacher/new/listening" element={user && ALLOWED_TEACHERS.includes(user.email || '') ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><LessonCreator /></div> : <Navigate to="/teacher" />} />
-            <Route path="/teacher/new/reading" element={user && ALLOWED_TEACHERS.includes(user.email || '') ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><ReadingLessonCreator /></div> : <Navigate to="/teacher" />} />
-            <Route path="/teacher/new/writing" element={user && ALLOWED_TEACHERS.includes(user.email || '') ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><WritingLessonCreator /></div> : <Navigate to="/teacher" />} />
-            <Route path="/teacher/analytics/:lessonId" element={user && ALLOWED_TEACHERS.includes(user.email || '') ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><LessonAnalytics /></div> : <Navigate to="/teacher" />} />
+            <Route path="/teacher/new/listening" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><LessonCreator /></div> : <Navigate to="/teacher" />} />
+            <Route path="/teacher/new/reading" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><ReadingLessonCreator /></div> : <Navigate to="/teacher" />} />
+            <Route path="/teacher/new/writing" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><WritingLessonCreator /></div> : <Navigate to="/teacher" />} />
+            <Route path="/teacher/analytics/:lessonId" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><LessonAnalytics /></div> : <Navigate to="/teacher" />} />
             <Route path="/lesson/:lessonId" element={<LessonRouter />} />
           </Routes>
         </main>
@@ -437,8 +426,6 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
           
           {user ? (
             <div className="space-y-4">
-              {ALLOWED_TEACHERS.includes(user.email || '') ? (
-                <>
                   <Link 
                     to="/teacher" 
                     className="w-full flex items-center justify-between bg-indigo-600 text-white px-6 py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-lg active:scale-95 group/btn"
@@ -460,14 +447,6 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
                     </div>
                     <ChevronRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
                   </button>
-                </>
-              ) : (
-                <div className="bg-amber-50 border border-amber-200 p-6 rounded-2xl text-center">
-                  <AlertTriangle className="w-8 h-8 text-amber-600 mx-auto mb-3" />
-                  <p className="text-amber-800 font-medium mb-2">Hệ thống đang bảo trì</p>
-                  <p className="text-amber-700 text-sm">Quyền tạo bài tập hiện đang bị hạn chế cho tài khoản của bạn. Vui lòng quay lại sau.</p>
-                </div>
-              )}
             </div>
           ) : (
             <button 
