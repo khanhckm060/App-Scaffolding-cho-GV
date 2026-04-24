@@ -32,9 +32,53 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isTeacher() {
+      return isAuthenticated();
+    }
+
     function isAdmin() {
       return isAuthenticated() && 
         (request.auth.token.email in [
+          "tranthuquynhhuong1993@gmail.com",
+          "thiemnguyen5678@gmail.com",
+          "thuhiennguyenols@gmail.com",
+          "dakhuc0602@gmail.com",
+          "hanxuanldb@gmail.com",
+          "quocthainguyen191@gmail.com",
+          "declandinh2006@gmail.com",
+          "phanbthuy@gmail.com",
+          "forwork.hanguyen@gmail.com",
+          "caothao092002@gmail.com",
+          "thaosteaching@gmail.com",
+          "tiennguyenthuy2309@gmail.com",
+          "mon09022004@gmail.com",
+          "tranthanhluangvav@gmail.com",
+          "Dandahull@gmail.com",
+          "Baotran286@gmail.com",
+          "Dinhlinh12052003@gmail.com",
+          "huyentruong070903@gmail.com",
+          "V.M.Minhh.Thu@gmail.com",
+          "hangntt.168t@ou.edu.vn",
+          "quinhquinh128@gmail.com",
+          "vuongthanhhuyen90@gmail.com",
+          "nguyengon196@gmail.com",
+          "t.hachau2209@gmail.com",
+          "hoatrennuibang17@gmail.com",
+          "buiphung293@gmail.com",
+          "nmyanh240220@gmail.com",
+          "quynhnhutdter@gmail.com",
+          "benieu11082000198000@gmail.com",
+          "vi802322@gmail.com",
+          "Nhachi7194@gmail.com",
+          "phamthuy022@gmail.com",
+          "nhuhuyen77@gmail.com",
+          "ongdieu0601@gmail.com",
+          "Ngkimnhung99@gmail.com",
+          "Kimduyen201195@gmail.com",
+          "quocpro2002@gmail.com",
+          "hhoanglan3103@gmail.com",
+          "Superdatnguyen@gmail.com",
+          "Hanhptm.cantho@gmail.com",
           "khanhckm060@gmail.com", 
           "ntquy2102@gmail.com", 
           "hanhnguyen.smiley@gmail.com", 
@@ -68,11 +112,7 @@ service cloud.firestore {
           "lhvon27@gmail.com",
           "trathingan1984@gmail.com",
           "Huong.nth.1208@gmail.com",
-          "phunguyenenglish@gmail.com",
-          "nguyengon196@gmail.com",
-          "vuongthanhhuyen90@gmail.com",
-          "mon09022004@gmail.com",
-          "Dandahull@gmail.com"
+          "phunguyenenglish@gmail.com"
         ] && request.auth.token.email_verified == true);
     }
 
@@ -135,8 +175,8 @@ service cloud.firestore {
 
     match /lessons/{lessonId} {
       allow read: if true;
-      allow create: if isAdmin() && isValidLesson(request.resource.data) && isOwner(request.resource.data.teacherId);
-      allow update, delete: if isAdmin() && isOwner(resource.data.teacherId);
+      allow create: if isTeacher() && isValidLesson(request.resource.data) && isOwner(request.resource.data.teacherId);
+      allow update, delete: if isTeacher() && isOwner(resource.data.teacherId);
     }
 
     match /results/{resultId} {
@@ -150,23 +190,23 @@ service cloud.firestore {
     }
 
     match /classes/{classId} {
-      allow read: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
-      allow create: if isAdmin() && isValidClass(request.resource.data) && isOwner(request.resource.data.teacherId);
-      allow update, delete: if isAdmin() && isOwner(resource.data.teacherId);
+      allow read: if isAuthenticated() && (isOwner(resource.data.teacherId) || isTeacher());
+      allow create: if isTeacher() && isValidClass(request.resource.data) && isOwner(request.resource.data.teacherId);
+      allow update, delete: if isTeacher() && isOwner(resource.data.teacherId);
     }
 
     match /students/{studentId} {
-      allow read: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin());
-      allow create: if isAdmin() && isValidStudent(request.resource.data) && isOwner(request.resource.data.teacherId);
-      allow update, delete: if isAdmin() && isOwner(resource.data.teacherId);
+      allow read: if isAuthenticated() && (isOwner(resource.data.teacherId) || isTeacher());
+      allow create: if isTeacher() && isValidStudent(request.resource.data) && isOwner(request.resource.data.teacherId);
+      allow update, delete: if isTeacher() && isOwner(resource.data.teacherId);
     }
 
     match /assignments/{assignmentId} {
       allow get: if true;
-      allow list: if isAuthenticated() && (isOwner(resource.data.teacherId) || isAdmin()) || (request.query.limit <= 20);
+      allow list: if isAuthenticated() && (isOwner(resource.data.teacherId) || isTeacher()) || (request.query.limit <= 20);
       
-      allow create: if isAdmin() && isValidAssignment(request.resource.data) && isOwner(request.resource.data.teacherId);
-      allow update, delete: if isAdmin() && isOwner(resource.data.teacherId);
+      allow create: if isTeacher() && isValidAssignment(request.resource.data) && isOwner(request.resource.data.teacherId);
+      allow update, delete: if isTeacher() && isOwner(resource.data.teacherId);
     }
 
     // Default deny

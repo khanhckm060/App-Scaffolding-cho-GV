@@ -1537,7 +1537,7 @@ export default function StudentLesson() {
             <StepHeader current={4} total={6} title="Phrase Dictation" icon={TypeIcon} />
             <div className="space-y-6">
               {(lesson.steps?.step2?.phrases || []).map((phrase, i) => (
-                <div key={`step4-phrase-${i}`} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <div key={`dictation-phrase-${i}-${phrase.substring(0, 5)}`} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                   <div className="flex items-center space-x-4">
                     <span className="text-2xl font-black text-slate-300 w-10">{(i + 1).toString().padStart(2, '0')}</span>
                     <div className="flex-1 flex space-x-2">
@@ -1682,7 +1682,7 @@ export default function StudentLesson() {
 
               <div className="whitespace-pre-wrap">
                 {(lesson.steps?.step3?.gapFillText || '').replace(/\[\d+\]/g, '[BLANK]').split('[BLANK]').map((part, i, arr) => (
-                  <span key={`gapfill-part-${i}`}>
+                  <span key={`gapfill-segment-${i}-${part.substring(0, 5)}`}>
                     {part}
                     {i < arr.length - 1 && (
                       <input 
@@ -1789,12 +1789,12 @@ export default function StudentLesson() {
 
             <div className="space-y-6">
               {(lesson.steps?.step4?.questions || []).map((q, i) => (
-                <div key={`step6-q-${i}`} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                <div key={`mcq-step6-q-${i}-${q.question.substring(0, 5)}`} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
                   <h3 className="text-xl font-bold text-slate-900">{i + 1}. {q.question}</h3>
                   <div className="grid grid-cols-1 gap-3">
                     {(q.options || []).map((opt, optIdx) => (
                       <button 
-                        key={`step6-q${i}-opt-${optIdx}`}
+                        key={`mcq-q${i}-opt-${optIdx}-${opt.substring(0, 5)}`}
                         onClick={() => {
                           const newAnswers = [...answers.step6];
                           newAnswers[i] = optIdx;

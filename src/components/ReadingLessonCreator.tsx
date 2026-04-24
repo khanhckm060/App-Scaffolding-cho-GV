@@ -13,12 +13,6 @@ import * as pdfjs from 'pdfjs-dist';
 // Configure pdfjs worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
-if (!process.env.GEMINI_API_KEY) {
-  console.warn("GEMINI_API_KEY is not defined in process.env");
-}
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-
 export default function ReadingLessonCreator() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -106,14 +100,16 @@ export default function ReadingLessonCreator() {
     setLoading(true);
     setError(null);
 
-    if (!process.env.GEMINI_API_KEY) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
       setError("GEMINI_API_KEY is missing. Please add nó trong menu Settings để sử dụng tính năng AI.");
       setLoading(false);
       return;
     }
 
     try {
-      console.log("Generating reading lesson with Gemini. API Key present:", !!process.env.GEMINI_API_KEY);
+      const ai = new GoogleGenAI({ apiKey, apiVersion: "v1beta" });
+      console.log("Generating reading lesson with Gemini. Source:", sourceType);
       let prompt = '';
       let tools: any[] = [];
 
@@ -197,10 +193,9 @@ export default function ReadingLessonCreator() {
            }`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
-          tools: tools.length > 0 ? tools : undefined,
           responseMimeType: "application/json",
           responseSchema: sourceType === 'test-upload' ? {
             type: Type.OBJECT,

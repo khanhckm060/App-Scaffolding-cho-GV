@@ -273,9 +273,9 @@ export default function StudentDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {todoAssignments.map((assign) => (
+            {todoAssignments.map((assign, i) => (
               <Link 
-                key={`todo-assign-${assign.id || assign.lessonId}`}
+                key={`todo-assign-${assign.id}-${i}`}
                 to={`/lesson/${assign.lessonId}?assignmentId=${assign.id}`}
                 className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all group"
               >
@@ -333,10 +333,10 @@ export default function StudentDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {completedAssignments.map((assign) => {
+                {completedAssignments.map((assign, i) => {
                   const bestResult = results.find(r => r.lessonId === assign.lessonId);
                   return (
-                    <tr key={`done-assign-${assign.id || assign.lessonId}`} className="hover:bg-slate-50 transition-colors">
+                    <tr key={`done-assign-${assign.id}-${i}`} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
                           <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-bold border border-slate-200">

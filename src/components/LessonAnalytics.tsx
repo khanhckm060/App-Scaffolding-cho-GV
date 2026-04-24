@@ -118,7 +118,7 @@ export default function LessonAnalytics() {
               <tbody className="divide-y divide-slate-100">
                 {results.map((result, i) => (
                   <motion.tr 
-                    key={result.id || i}
+                    key={result.id}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}

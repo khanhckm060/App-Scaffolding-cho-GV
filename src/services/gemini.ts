@@ -1,16 +1,27 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ScaffoldingSteps, VocabularyItem } from "../types";
 
-if (!process.env.GEMINI_API_KEY) {
-  console.warn("GEMINI_API_KEY is not defined in process.env");
+let aiInstance: GoogleGenAI | null = null;
+function getAI() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is missing. Please add it in the Settings menu.");
+  }
+  if (!aiInstance) {
+    aiInstance = new GoogleGenAI({ apiKey, apiVersion: "v1beta" });
+  }
+  return aiInstance;
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-
 export async function generateScaffolding(script: string, targetVocab: string[]): Promise<ScaffoldingSteps> {
+  console.log("Starting generateScaffolding for vocab:", targetVocab);
+  const ai = getAI();
   const result = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash",
     contents: `You are an expert English teacher. Create a listening scaffolding lesson for students based on the provided script and vocabulary.
+    
+    Level: A1-B2
+    Target: Listening Comprehension and Vocabulary acquisition.
     
     Input:
     - Script: ${script}
@@ -139,12 +150,15 @@ export async function generateScaffolding(script: string, targetVocab: string[])
   });
 
   const responseText = result.text;
+  console.log("AI Raw Response Length:", responseText?.length);
   if (!responseText) {
     throw new Error("AI returned an empty response. Please try again with a different script or vocabulary.");
   }
   
   try {
-    return JSON.parse(responseText);
+    const data = JSON.parse(responseText);
+    console.log("Successfully parsed AI response");
+    return data;
   } catch (e) {
     console.error("Failed to parse AI response:", responseText);
     throw new Error("AI response was not in a valid format. Please try again.");
@@ -203,10 +217,11 @@ Output in JSON format with this structure:
   "vocabulary": [
     { "word": "string", "ipa": "string", "vietnameseDefinition": "string", "example": "string" }
   ]
-}`;
+} `;
 
+  const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -292,10 +307,11 @@ Output in JSON format with this structure:
     "step4": { "questions": [{ "vietnamese": "string", "english": "string", "explanation": "string" }] },
     "step5": { "paragraphs": [{ "topic": "string", "vietnamese": { "topicSentence": "string", "supportingSentence": "string", "example": "string" }, "english": { "topicSentence": "string", "supportingSentence": "string", "example": "string" }, "explanation": "string" }] }
   }
-}`;
+} `;
 
+  const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -468,8 +484,9 @@ export async function regenerateWritingStep2(params: WritingLessonParams): Promi
     ]
   }`;
 
+  const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -515,8 +532,9 @@ export async function regenerateWritingStep3(params: WritingLessonParams): Promi
     ]
   }`;
 
+  const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -569,8 +587,9 @@ export async function regenerateWritingStep4(params: WritingLessonParams): Promi
     "questions": [{ "vietnamese": "string", "english": "string", "explanation": "string" }]
   }`;
 
+  const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -617,8 +636,9 @@ export async function regenerateWritingStep5(params: WritingLessonParams): Promi
     }]
   }`;
 
+  const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -683,10 +703,11 @@ export async function checkStep3Correction(original: string, correction: string,
   {
     "correct": boolean,
     "feedback": "string in Vietnamese explaining why or what minor mistake was made"
-  }`;
+  } `;
 
+  const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -721,10 +742,11 @@ export async function checkWritingGrammar(targetVietnamese: string, targetEnglis
     "correct": boolean,
     "feedback": "string in Vietnamese detail instructions",
     "suggestedCorrection": "string (the student's sentence with fixes or a better version)"
-  }`;
+  } `;
 
+  const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -762,8 +784,9 @@ export async function checkParagraphGrammar(topic: string, referenceEnglish: str
     "suggestedCorrection": "string (the student's paragraph with corrections)"
   }`;
 
+  const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -800,8 +823,9 @@ export async function explainMCQAnswer(question: string, options: string[], sele
   Keep it concise (max 2 sentences).
   Return ONLY the explanation string.`;
 
+  const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash",
     contents: prompt
   });
 

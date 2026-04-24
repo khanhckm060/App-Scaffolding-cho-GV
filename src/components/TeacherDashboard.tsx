@@ -35,6 +35,8 @@ export default function TeacherDashboard() {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [showEditStudent, setShowEditStudent] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignCategory, setAssignCategory] = useState<Lesson['type'] | 'speaking' | null>(null);
+  const [lessonsCategory, setLessonsCategory] = useState<Lesson['type'] | 'speaking' | 'all'>('all');
   const [showCreateTypeModal, setShowCreateTypeModal] = useState(false);
   const [selectedLessonForAssign, setSelectedLessonForAssign] = useState<Lesson | null>(null);
   const [assignDeadline, setAssignDeadline] = useState<string>(() => {
@@ -73,15 +75,21 @@ export default function TeacherDashboard() {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
+      // Fetch all results for the teacher and filter/sort in memory to avoid needing a composite index while it's building
       const resultsQuery = query(
         collection(db, 'results'), 
-        where('teacherId', '==', uid),
-        where('completedAt', '>=', thirtyDaysAgo.toISOString()),
-        orderBy('completedAt', 'desc')
+        where('teacherId', '==', uid)
       );
       
       const resultsSnap = await getDocs(resultsQuery);
-      setResults(resultsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result)));
+      const allResults = resultsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result));
+      
+      // Filter by the last 30 days in memory
+      const filteredResults = allResults
+        .filter(r => r.completedAt >= thirtyDaysAgo.toISOString())
+        .sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+        
+      setResults(filteredResults);
       
     } catch (error: any) {
       console.error("Error fetching data:", error);
@@ -385,7 +393,7 @@ export default function TeacherDashboard() {
               <div className="space-y-2">
                 {classes.map((cls, i) => (
                   <button
-                    key={`class-${cls.id || i}`}
+                    key={`class-${cls.id}-${i}`}
                     onClick={() => setSelectedClassId(cls.id!)}
                     className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${selectedClassId === cls.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-200 hover:bg-slate-50'}`}
                   >
@@ -520,10 +528,10 @@ export default function TeacherDashboard() {
                                 <td colSpan={4} className="py-8 text-center text-slate-400 italic">Chưa có học sinh trong lớp này.</td>
                               </tr>
                             ) : (
-                              classStudents.map((student) => {
+                              classStudents.map((student, i) => {
                                 const lastResult = results.filter(r => r.studentEmail === student.email).sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0];
                                 return (
-                                  <tr key={`student-row-${student.id || student.email}`} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                  <tr key={`student-row-${student.id || student.email}-${i}`} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                                     <td className="py-4 px-4">
                                       <p className="font-bold text-slate-800">{student.name}</p>
                                     </td>
@@ -619,7 +627,7 @@ export default function TeacherDashboard() {
                                 <td colSpan={10} className="py-8 text-center text-slate-400 italic">Chưa có học sinh.</td>
                               </tr>
                             ) : (
-                              classStudents.map((student) => {
+                              classStudents.map((student, i) => {
                                 const monthlyAssignments = classAssignments
                                   .filter(a => {
                                     const d = new Date(a.createdAt);
@@ -628,7 +636,7 @@ export default function TeacherDashboard() {
                                   .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
                                 return (
-                                  <tr key={`row-student-month-${student.id || student.email}`} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                  <tr key={`row-student-month-${student.id || student.email}-${i}`} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                                     <td className="py-4 px-4 sticky left-0 bg-white z-10 border-r border-slate-50">
                                       <p className="font-bold text-slate-800 text-sm truncate w-40">{student.name}</p>
                                     </td>
@@ -652,7 +660,7 @@ export default function TeacherDashboard() {
                                       );
                                     })}
                                     {monthlyAssignments.length === 0 && (
-                                      <td key="no-assignments-cell" className="py-8 text-center text-slate-300 text-xs italic" colSpan={1}>
+                                      <td key={`no-assignments-cell-${student.id || student.email}`} className="py-8 text-center text-slate-300 text-xs italic" colSpan={1}>
                                         Không có bài tập trong tháng này
                                       </td>
                                     )}
@@ -748,34 +756,62 @@ export default function TeacherDashboard() {
       ) : (
         /* Lessons Tab */
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <h3 className="text-xl font-bold text-slate-800">Bài tập đã tạo</h3>
-            <button 
-              onClick={() => setShowCreateTypeModal(true)}
-              className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition-all shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Tạo bài mới</span>
-            </button>
-          </div>
-
-          {lessons.length === 0 ? (
-            <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center">
-              <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Chưa có bài tập nào</h3>
-              <p className="text-slate-500 mb-6">Bắt đầu bằng cách tạo bài tập đầu tiên của bạn.</p>
+            <div className="flex items-center space-x-3">
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                {(['all', 'listening', 'reading', 'writing', 'speaking'] as const).map((cat) => (
+                  <button
+                    key={`cat-filter-${cat}`}
+                    onClick={() => setLessonsCategory(cat)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all capitalize",
+                      lessonsCategory === cat ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    {cat === 'all' ? 'Tất cả' : cat === 'listening' ? 'Nghe' : cat === 'reading' ? 'Đọc' : cat === 'writing' ? 'Viết' : 'Nói'}
+                  </button>
+                ))}
+              </div>
               <button 
                 onClick={() => setShowCreateTypeModal(true)}
-                className="inline-block bg-indigo-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-all"
+                className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition-all shadow-sm"
               >
-                Tạo ngay
+                <Plus className="w-4 h-4" />
+                <span>Tạo bài mới</span>
               </button>
+            </div>
+          </div>
+
+          {lessons.filter(l => lessonsCategory === 'all' || l.type === lessonsCategory).length === 0 ? (
+            <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center">
+              {lessonsCategory === 'speaking' ? (
+                <>
+                  <Mic className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Kỹ năng Nói đang phát triển</h3>
+                  <p className="text-slate-500">Tính năng tạo bài tập Speaking AI sẽ sớm ra mắt.</p>
+                </>
+              ) : (
+                <>
+                  <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Chưa có bài tập nào</h3>
+                  <p className="text-slate-500 mb-6">Bắt đầu bằng cách tạo bài tập đầu tiên của bạn.</p>
+                  <button 
+                    onClick={() => setShowCreateTypeModal(true)}
+                    className="inline-block bg-indigo-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-all"
+                  >
+                    Tạo ngay
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {lessons.map((lesson) => (
+              {lessons
+                .filter(l => lessonsCategory === 'all' || l.type === lessonsCategory)
+                .map((lesson, i) => (
                 <motion.div
-                  key={`lesson-${lesson.id}`}
+                  key={`lesson-${lesson.id || i}`}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
@@ -839,7 +875,7 @@ export default function TeacherDashboard() {
                       {lesson.vocabulary.length} Từ vựng
                     </span>
                     <div className="flex -space-x-2">
-                      {[1, 2, 3, 4, 5].map(step => (
+                      {[1, 2, 3, 4, 5, 6].map(step => (
                         <div key={`step-indicator-${lesson.id}-${step}`} className="w-6 h-6 rounded-full bg-white border-2 border-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400">
                           {step}
                         </div>
@@ -1032,12 +1068,17 @@ export default function TeacherDashboard() {
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-bold text-slate-900">
-                  {selectedLessonForAssign ? 'Thiết lập yêu cầu bài tập' : 'Chọn bài tập để giao'}
+                  {selectedLessonForAssign 
+                    ? 'Thiết lập yêu cầu bài tập' 
+                    : assignCategory 
+                      ? `Chọn bài tập ${assignCategory === 'listening' ? 'Nghe' : assignCategory === 'reading' ? 'Đọc' : assignCategory === 'writing' ? 'Viết' : 'Nói'}`
+                      : 'Chọn kỹ năng bài tập'}
                 </h3>
                 <button 
                   onClick={() => {
                     setShowAssignModal(false);
                     setSelectedLessonForAssign(null);
+                    setAssignCategory(null);
                   }} 
                   className="text-slate-400 hover:text-slate-600"
                 >
@@ -1047,33 +1088,94 @@ export default function TeacherDashboard() {
               
               {!selectedLessonForAssign ? (
                 <div className="overflow-y-auto flex-1 pr-2 space-y-3">
-                  {lessons.length === 0 ? (
-                    <p className="text-center py-8 text-slate-400 italic">Bạn chưa tạo bài tập nào.</p>
-                  ) : (
-                    lessons.map((lesson) => (
-                      <div key={`assign-option-${lesson.id}`} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 transition-all group">
-                        <div className="flex items-center space-x-4">
-                          <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                            <BookOpen className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <div className="flex items-center space-x-2">
-                              <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-bold border border-slate-200">
-                                {lesson.level}
-                              </span>
-                              <p className="font-bold text-slate-800">{lesson.title}</p>
-                            </div>
-                            <p className="text-xs text-slate-400">{lesson.vocabulary.length} từ vựng</p>
-                          </div>
+                  {!assignCategory ? (
+                    <div className="grid grid-cols-2 gap-4 py-4">
+                      <button
+                        onClick={() => setAssignCategory('listening')}
+                        className="flex flex-col items-center p-6 rounded-2xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
+                      >
+                        <div className="bg-indigo-100 p-4 rounded-xl mb-3 group-hover:bg-indigo-600 transition-colors">
+                          <Headphones className="w-6 h-6 text-indigo-600 group-hover:text-white" />
                         </div>
-                        <button 
-                          onClick={() => setSelectedLessonForAssign(lesson)}
-                          className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-indigo-700 transition-all shadow-sm"
-                        >
-                          Chọn bài
-                        </button>
-                      </div>
-                    ))
+                        <span className="font-bold text-slate-900">Nghe</span>
+                      </button>
+                      <button
+                        onClick={() => setAssignCategory('reading')}
+                        className="flex flex-col items-center p-6 rounded-2xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
+                      >
+                        <div className="bg-indigo-100 p-4 rounded-xl mb-3 group-hover:bg-indigo-600 transition-colors">
+                          <BookOpen className="w-6 h-6 text-indigo-600 group-hover:text-white" />
+                        </div>
+                        <span className="font-bold text-slate-900">Đọc</span>
+                      </button>
+                      <button
+                        onClick={() => setAssignCategory('writing')}
+                        className="flex flex-col items-center p-6 rounded-2xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
+                      >
+                        <div className="bg-indigo-100 p-4 rounded-xl mb-3 group-hover:bg-indigo-600 transition-colors">
+                          <PenTool className="w-6 h-6 text-indigo-600 group-hover:text-white" />
+                        </div>
+                        <span className="font-bold text-slate-900">Viết</span>
+                      </button>
+                      <button
+                        onClick={() => setAssignCategory('speaking')}
+                        className="flex flex-col items-center p-6 rounded-2xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
+                      >
+                        <div className="bg-indigo-100 p-4 rounded-xl mb-3 group-hover:bg-indigo-600 transition-colors">
+                          <Mic className="w-6 h-6 text-indigo-600 group-hover:text-white" />
+                        </div>
+                        <span className="font-bold text-slate-900">Nói</span>
+                      </button>
+                    </div>
+                  ) : assignCategory === 'speaking' ? (
+                    <div className="text-center py-12">
+                      <Mic className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                      <p className="text-slate-500 font-medium">Chưa có bài tập kỹ năng Nói.</p>
+                      <button 
+                        onClick={() => setAssignCategory(null)}
+                        className="mt-4 text-indigo-600 font-bold hover:underline"
+                      >
+                        Quay lại
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <button 
+                        onClick={() => setAssignCategory(null)}
+                        className="text-indigo-600 font-bold text-sm mb-4 hover:underline flex items-center"
+                      >
+                        <ChevronRight className="w-4 h-4 rotate-180 mr-1" />
+                        Quay lại chọn kỹ năng
+                      </button>
+                      {lessons.filter(l => l.type === assignCategory).length === 0 ? (
+                        <p className="text-center py-8 text-slate-400 italic">Bạn chưa tạo bài tập nào trong kỹ năng này.</p>
+                      ) : (
+                        lessons.filter(l => l.type === assignCategory).map((lesson, i) => (
+                          <div key={`assign-option-${lesson.id || i}`} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 transition-all group">
+                            <div className="flex items-center space-x-4">
+                              <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                <BookOpen className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-bold border border-slate-200">
+                                    {lesson.level}
+                                  </span>
+                                  <p className="font-bold text-slate-800">{lesson.title}</p>
+                                </div>
+                                <p className="text-xs text-slate-400">{lesson.vocabulary.length} từ vựng</p>
+                              </div>
+                            </div>
+                            <button 
+                              onClick={() => setSelectedLessonForAssign(lesson)}
+                              className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-indigo-700 transition-all shadow-sm"
+                            >
+                              Chọn bài
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   )}
                 </div>
               ) : (
