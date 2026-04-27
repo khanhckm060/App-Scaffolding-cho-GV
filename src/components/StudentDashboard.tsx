@@ -7,6 +7,7 @@ import {
   BookOpen, Clock, CheckCircle2, AlertCircle, AlertTriangle, ChevronRight, 
   Search, GraduationCap, Calendar, Trophy, ArrowRight, LogIn, Mail
 } from 'lucide-react';
+import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -34,15 +35,17 @@ export default function StudentDashboard() {
       setLoading(true);
       setQuotaExceeded(false);
       try {
-        // Fetch assignments for this email
+        // Fetch assignments for this email (lowercase)
+        const normalizedEmail = email.toLowerCase().trim();
         const qAssignments = query(
           collection(db, 'assignments'),
-          where('studentEmails', 'array-contains', email),
-          orderBy('createdAt', 'desc')
+          where('studentEmails', 'array-contains', normalizedEmail)
         );
         
         const assignmentSnap = await getDocs(qAssignments);
-        const assignmentData = assignmentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment));
+        const assignmentData = assignmentSnap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as Assignment))
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         
         // Fetch results for this email (last 30 days to save quota)
         const thirtyDaysAgo = new Date();
@@ -50,12 +53,15 @@ export default function StudentDashboard() {
         
         const qResults = query(
           collection(db, 'results'),
-          where('studentEmail', '==', email),
-          where('completedAt', '>=', thirtyDaysAgo.toISOString()),
-          orderBy('completedAt', 'desc')
+          where('studentEmail', '==', normalizedEmail)
         );
         const resultSnap = await getDocs(qResults);
-        setResults(resultSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result)));
+        const resultData = resultSnap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as Result))
+          .filter(r => new Date(r.completedAt).getTime() >= thirtyDaysAgo.getTime())
+          .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+
+        setResults(resultData);
 
         // Fetch lesson details for each assignment
         // Collect unique lesson IDs
@@ -96,7 +102,9 @@ export default function StudentDashboard() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (email) {
-      localStorage.setItem('studentEmail', email);
+      const normalizedEmail = email.toLowerCase().trim();
+      localStorage.setItem('studentEmail', normalizedEmail);
+      setEmail(normalizedEmail);
       setIsLoggedIn(true);
     }
   };
@@ -161,21 +169,26 @@ export default function StudentDashboard() {
 
   return (
     <div className="space-y-8">
-      {quotaExceeded && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-col md:flex-row items-start justify-between gap-6 text-amber-800 shadow-sm animate-in fade-in slide-in-from-top-2 mb-8">
+      {(quotaExceeded || lastError) && (
+        <div className={cn(
+          "bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-col md:flex-row items-start justify-between gap-6 text-amber-800 shadow-sm animate-in fade-in slide-in-from-top-2 mb-8",
+          !quotaExceeded && "bg-red-50 border-red-200 text-red-800"
+        )}>
           <div className="flex items-start gap-4">
-            <div className="bg-amber-100 p-3 rounded-xl">
-              <AlertTriangle className="w-6 h-6 text-amber-600" />
+            <div className={cn("bg-amber-100 p-3 rounded-xl", !quotaExceeded && "bg-red-100")}>
+              <AlertTriangle className={cn("w-6 h-6 text-amber-600", !quotaExceeded && "text-red-600")} />
             </div>
             <div className="flex-1">
-              <p className="font-bold text-lg mb-1">Thông báo từ Firebase (Quota/Limit)</p>
+              <p className="font-bold text-lg mb-1">
+                {quotaExceeded ? "Thông báo từ Firebase (Quota/Limit)" : "Có lỗi xảy ra khi tải dữ liệu"}
+              </p>
               <p className="text-sm opacity-90 leading-relaxed">
-                Hệ thống ghi nhận một vấn đề về hạn mức truy cập dữ liệu. 
-                <br />
-                Nếu giáo viên đã nâng cấp gói <span className="font-bold">Blaze</span>, vui lòng đợi hệ thống cập nhật hoặc thử lại sau ít phút.
+                {quotaExceeded 
+                  ? "Hệ thống ghi nhận một vấn đề về hạn mức truy cập dữ liệu. Nếu giáo viên đã nâng cấp gói Blaze, vui lòng đợi hệ thống cập nhật."
+                  : "Vui lòng kiểm tra kết nối mạng hoặc thử tải lại trang. Nếu lỗi tiếp tục diễn ra, hãy liên hệ với bộ phận hỗ trợ."}
               </p>
               {lastError && (
-                <div className="mt-3 p-3 bg-amber-900/5 rounded-xl border border-amber-200/50">
+                <div className={cn("mt-3 p-3 bg-amber-900/5 rounded-xl border border-amber-200/50", !quotaExceeded && "bg-red-900/5 border-red-200/50")}>
                   <p className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-1">Chi tiết lỗi kỹ thuật:</p>
                   <code className="text-xs font-mono break-all opacity-80">{lastError}</code>
                 </div>
@@ -185,7 +198,10 @@ export default function StudentDashboard() {
           <div className="flex flex-col gap-2 w-full md:w-auto">
             <button 
               onClick={() => window.location.reload()}
-              className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap"
+              className={cn(
+                "px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap",
+                !quotaExceeded && "bg-red-600 hover:bg-red-700"
+              )}
             >
               Tải lại trang
             </button>
@@ -194,9 +210,12 @@ export default function StudentDashboard() {
                 setQuotaExceeded(false);
                 setLastError('');
               }}
-              className="px-6 py-3 bg-white border border-amber-200 text-amber-700 rounded-xl font-bold text-center hover:bg-amber-50 transition-all text-sm"
+              className={cn(
+                "px-6 py-3 bg-white border border-amber-200 text-amber-700 rounded-xl font-bold text-center hover:bg-amber-50 transition-all text-sm",
+                !quotaExceeded && "border-red-200 text-red-700"
+              )}
             >
-              Bỏ qua thông báo
+              Bỏ qua
             </button>
           </div>
         </div>

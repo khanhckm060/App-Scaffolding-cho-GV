@@ -725,7 +725,7 @@ export default function StudentLesson() {
       const result: Result = {
         lessonId,
         studentName,
-        studentEmail,
+        studentEmail: studentEmail.toLowerCase().trim(),
         teacherId: lesson.teacherId || '',
         score,
         details,

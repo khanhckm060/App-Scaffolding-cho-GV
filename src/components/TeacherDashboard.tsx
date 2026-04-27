@@ -133,6 +133,7 @@ export default function TeacherDashboard() {
     if (!auth.currentUser || !selectedClassId) return;
     await addDoc(collection(db, 'students'), {
       ...newStudent,
+      email: newStudent.email.toLowerCase().trim(),
       classId: selectedClassId,
       teacherId: auth.currentUser.uid
     });
@@ -210,7 +211,7 @@ export default function TeacherDashboard() {
     if (!auth.currentUser || !selectedClassId || !selectedClass || !selectedLessonForAssign) return;
     
     const deadline = new Date(assignDeadline);
-    const studentEmails = classStudents.map(s => s.email);
+    const studentEmails = classStudents.map(s => s.email.toLowerCase().trim());
 
     const assignmentRef = await addDoc(collection(db, 'assignments'), {
       lessonId: selectedLessonForAssign.id,
@@ -279,7 +280,7 @@ export default function TeacherDashboard() {
     await updateDoc(doc(db, 'students', editingStudent.id), {
       name: editingStudent.name,
       phone: editingStudent.phone,
-      email: editingStudent.email
+      email: editingStudent.email.toLowerCase().trim()
     });
     
     setEditingStudent(null);
