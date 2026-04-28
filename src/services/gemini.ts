@@ -17,7 +17,7 @@ export async function generateScaffolding(script: string, targetVocab: string[])
   console.log("Starting generateScaffolding for vocab:", targetVocab);
   const ai = getAI();
   const result = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: `You are an expert English teacher. Create a listening scaffolding lesson for students based on the provided script and vocabulary.
     
     Level: A1-B2
@@ -221,7 +221,7 @@ Output in JSON format with this structure:
 
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -311,7 +311,7 @@ Output in JSON format with this structure:
 
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -486,7 +486,7 @@ export async function regenerateWritingStep2(params: WritingLessonParams): Promi
 
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -534,7 +534,7 @@ export async function regenerateWritingStep3(params: WritingLessonParams): Promi
 
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -589,7 +589,7 @@ export async function regenerateWritingStep4(params: WritingLessonParams): Promi
 
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -638,7 +638,7 @@ export async function regenerateWritingStep5(params: WritingLessonParams): Promi
 
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -707,7 +707,7 @@ export async function checkStep3Correction(original: string, correction: string,
 
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -746,7 +746,7 @@ export async function checkWritingGrammar(targetVietnamese: string, targetEnglis
 
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -786,7 +786,7 @@ export async function checkParagraphGrammar(topic: string, referenceEnglish: str
 
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -825,7 +825,7 @@ export async function explainMCQAnswer(question: string, options: string[], sele
 
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt
   });
 

@@ -559,7 +559,7 @@ export default function StudentLesson() {
         return Math.round((correct / (total || 1)) * 100) / 10;
       }
 
-      const correct = (answers.reading || []).filter((a: any, i: number) => {
+      const correct = (Array.isArray(answers.reading) ? answers.reading : []).filter((a: any, i: number) => {
         const q = lesson.readingQuestions?.[i];
         if (!q) return false;
         return isAnswerCorrect(a, q.answer, q.type);
@@ -578,13 +578,13 @@ export default function StudentLesson() {
       if (totalQuestions === 0) return 0;
 
       // Step 2: Vocabulary Review (Pronunciation)
-      const step2Correct = (answers.step2 || []).filter((a: boolean) => a === true).length;
+      const step2Correct = (Array.isArray(answers.step2) ? answers.step2 : []).filter((a: boolean) => a === true).length;
       
       // Step 3 is mandatory to proceed, so it is always correct if we reach result
       let correctCount = step2Correct + step3Count;
 
       // Step 4: Phrase Dictation
-      const correctPhrases = (answers.step4 || []).filter((a: string, i: number) => {
+      const correctPhrases = (Array.isArray(answers.step4) ? answers.step4 : []).filter((a: string, i: number) => {
         if (!lesson.steps?.step2?.phrases?.[i]) return false;
         const normalize = (text: string) => 
           text.toLowerCase()
@@ -699,7 +699,7 @@ export default function StudentLesson() {
           details.total_reading = total;
         } else {
           details.total_reading = lesson.readingQuestions?.length || 0;
-          details.reading = (answers.reading || []).filter((a: any, i: number) => {
+          details.reading = (Array.isArray(answers.reading) ? answers.reading : []).filter((a: any, i: number) => {
             const q = lesson.readingQuestions?.[i];
             if (!q) return false;
             
@@ -986,7 +986,7 @@ export default function StudentLesson() {
                                   key={`rq-${i}-opt-${optIdx}`}
                                   onClick={() => {
                                     if (readingChecked) return;
-                                    const newAnswers = [...(answers.reading || [])];
+                                    const newAnswers = [...(Array.isArray(answers.reading) ? answers.reading : [])];
                                     newAnswers[i] = optIdx;
                                     setAnswers({ ...answers, reading: newAnswers });
                                   }}
@@ -1017,7 +1017,8 @@ export default function StudentLesson() {
                                 value={answers.reading[i] || ''}
                                 onChange={(e) => {
                                   if (readingChecked) return;
-                                  const newAnswers = [...(answers.reading || [])];
+                                  const newRes = Array.isArray(answers.reading) ? answers.reading : [];
+                                  const newAnswers = [...newRes];
                                   newAnswers[i] = e.target.value;
                                   setAnswers({ ...answers, reading: newAnswers });
                                 }}
@@ -1136,12 +1137,12 @@ export default function StudentLesson() {
                   <div className="mt-6 pt-6 border-t border-slate-100">
                     <div className="flex items-center justify-between text-sm font-bold text-slate-500 mb-2">
                       <span>Progress</span>
-                      <span>{Math.round(((answers.reading || []).filter(a => a !== undefined && a !== "").length / (lesson.readingQuestions?.length || 1)) * 100)}%</span>
+                      <span>{Math.round(((Array.isArray(answers.reading) ? answers.reading : []).filter(a => a !== undefined && a !== "").length / (lesson.readingQuestions?.length || 1)) * 100)}%</span>
                     </div>
                     <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-6">
                       <div 
                         className="bg-indigo-600 h-full transition-all duration-500" 
-                        style={{ width: `${((answers.reading || []).filter(a => a !== undefined && a !== "").length / (lesson.readingQuestions?.length || 1)) * 100}%` }}
+                        style={{ width: `${((Array.isArray(answers.reading) ? answers.reading : []).filter(a => a !== undefined && a !== "").length / (lesson.readingQuestions?.length || 1)) * 100}%` }}
                       />
                     </div>
 
@@ -1957,13 +1958,13 @@ export default function StudentLesson() {
                   </div>
                   <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                     <div className="text-xl font-bold text-slate-900">
-                      {(answers.step5 || []).filter((a: string, i: number) => a?.toLowerCase().trim() === (lesson.steps?.step3?.blanks?.[i] || '').toLowerCase().trim()).length} / {lesson.steps?.step3?.blanks?.length || 0}
+                      {(Array.isArray(answers.step5) ? answers.step5 : []).filter((a: string, i: number) => a?.toLowerCase().trim() === (lesson.steps?.step3?.blanks?.[i] || '').toLowerCase().trim()).length} / {lesson.steps?.step3?.blanks?.length || 0}
                     </div>
                     <div className="text-[10px] font-bold text-slate-400 uppercase mt-1">Gap-fill (Step 5)</div>
                   </div>
                   <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm md:col-start-2">
                     <div className="text-xl font-bold text-slate-900">
-                      {(answers.step6 || []).filter((a: number, i: number) => a === (lesson.steps?.step4?.questions?.[i]?.answer)).length} / {lesson.steps?.step4?.questions?.length || 0}
+                      {(Array.isArray(answers.step6) ? answers.step6 : []).filter((a: number, i: number) => a === (lesson.steps?.step4?.questions?.[i]?.answer)).length} / {lesson.steps?.step4?.questions?.length || 0}
                     </div>
                     <div className="text-[10px] font-bold text-slate-400 uppercase mt-1">MCQs (Step 6)</div>
                   </div>
@@ -1974,7 +1975,7 @@ export default function StudentLesson() {
                     {lesson.sections ? (
                       `${calculateScore()} / 10`
                     ) : (
-                      `${(answers.reading || []).filter((a: any, i: number) => {
+                      `${(Array.isArray(answers.reading) ? answers.reading : []).filter((a: any, i: number) => {
                         const q = lesson.readingQuestions?.[i];
                         if (!q) return false;
                         if (q.type === 'multipleChoice') return a === q.answer;

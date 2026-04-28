@@ -10,6 +10,7 @@ export default defineConfig(({mode}) => {
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.TEST_MODE_ENABLED': JSON.stringify(env.TEST_MODE_ENABLED),
+      'process.env.NEXT_PUBLIC_TEST_MODE_ENABLED': JSON.stringify(env.NEXT_PUBLIC_TEST_MODE_ENABLED),
       'process.env.NEXT_PUBLIC_TEST_TOKEN': JSON.stringify(env.NEXT_PUBLIC_TEST_TOKEN),
     },
     resolve: {

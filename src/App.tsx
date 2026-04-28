@@ -230,50 +230,48 @@ function InAppBrowserWarning() {
   );
 }
 
+// TEST MODE BYPASS — DO NOT REMOVE
+function getTestModeUser() {
+  if (typeof window === 'undefined') return null;
+  if (process.env.TEST_MODE_ENABLED !== 'true' && 
+      process.env.NEXT_PUBLIC_TEST_MODE_ENABLED !== 'true') {
+    return null;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const tokenFromUrl = params.get('test_token');
+  const tokenFromStorage = window.sessionStorage.getItem('__test_token');
+  const validToken = process.env.NEXT_PUBLIC_TEST_TOKEN;
+
+  if (tokenFromUrl === validToken || tokenFromStorage === validToken) {
+    if (tokenFromUrl === validToken) {
+      window.sessionStorage.setItem('__test_token', validToken);
+    }
+    console.log("Test mode: token matched, returning fake user");
+    return {
+      uid: 'test-user-001',
+      email: 'test@example.com',
+      displayName: 'Test Teacher',
+      emailVerified: true,
+      photoURL: 'https://ui-avatars.com/api/?name=Test+Teacher&background=6366f1&color=fff',
+      providerId: 'firebase',
+    } as unknown as User;
+  }
+  
+  console.log("Test mode: no token match, using normal auth");
+  return null;
+}
+
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(getTestModeUser());
+  const [loading, setLoading] = useState(!getTestModeUser());
 
   useEffect(() => {
-    // TEST MODE BYPASS — DO NOT REMOVE
-    const checkTestMode = (): User | null => {
-      // Use process.env as defined in vite.config.ts
-      const isTestModeEnabled = process.env.TEST_MODE_ENABLED === 'true';
-      if (!isTestModeEnabled) return null;
-
-      const urlParams = new URLSearchParams(window.location.search);
-      const testToken = urlParams.get('test_token') || sessionStorage.getItem('test_token');
-      const expectedToken = process.env.NEXT_PUBLIC_TEST_TOKEN;
-
-      if (testToken && testToken === expectedToken) {
-        if (!sessionStorage.getItem('test_token')) {
-          sessionStorage.setItem('test_token', testToken);
-        }
-        return {
-          uid: 'test-user-001',
-          email: 'test@example.com',
-          displayName: 'Test Teacher',
-          emailVerified: true,
-          photoURL: 'https://ui-avatars.com/api/?name=Test+Teacher&background=6366f1&color=fff',
-          providerData: [],
-          metadata: {},
-          delete: async () => {},
-          getIdToken: async () => '',
-          getIdTokenResult: async () => ({} as any),
-          reload: async () => {},
-          toJSON: () => ({}),
-          phoneNumber: null,
-          providerId: 'firebase',
-        } as unknown as User;
-      }
-      return null;
-    };
-
-    const testUser = checkTestMode();
-    if (testUser) {
-      setUser(testUser);
-      setLoading(false);
-      return;
+    // If test mode already returned a user, do not setup Firebase auth listener
+    if (user && (process.env.TEST_MODE_ENABLED === 'true' || process.env.NEXT_PUBLIC_TEST_MODE_ENABLED === 'true')) {
+      const validToken = process.env.NEXT_PUBLIC_TEST_TOKEN;
+      const token = window.sessionStorage.getItem('__test_token');
+      if (token === validToken) return;
     }
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {

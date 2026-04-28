@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { Lesson, ReadingQuestion, LessonLevel, LEVEL_DESCRIPTIONS } from '../types';
-import { stringifyError } from '../lib/utils';
+import { stringifyError, cn } from '../lib/utils';
 import { GoogleGenAI, Type } from "@google/genai";
 import { BookOpen, Sparkles, AlertCircle, ChevronLeft, Send, CheckCircle2, Loader2, Plus, Trash2, FileText, Link as LinkIcon, Upload, Globe, FileUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -25,6 +25,7 @@ export default function ReadingLessonCreator() {
   const [spreadsheetUrl, setSpreadsheetUrl] = useState('');
   const [fileContent, setFileContent] = useState('');
   const [fileName, setFileName] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
   const [numPassages, setNumPassages] = useState(1);
   const [passingScore, setPassingScore] = useState(8.0);
   const [questionTypes, setQuestionTypes] = useState({
@@ -35,10 +36,7 @@ export default function ReadingLessonCreator() {
   });
   const [numQuestions, setNumQuestions] = useState(5);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processFile = async (file: File) => {
     const isDocx = file.name.endsWith('.docx');
     const isPdf = file.name.endsWith('.pdf');
 
@@ -73,6 +71,28 @@ export default function ReadingLessonCreator() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await processFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) await processFile(file);
   };
 
   const generateLesson = async () => {
@@ -193,7 +213,7 @@ export default function ReadingLessonCreator() {
            }`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
+        model: "gemini-3-flash-preview",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -475,13 +495,27 @@ export default function ReadingLessonCreator() {
                     />
                     <label 
                       htmlFor="word-upload"
-                      className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-dashed border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all cursor-pointer group"
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={cn(
+                        "w-full flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-dashed transition-all cursor-pointer group",
+                        isDragging 
+                          ? "border-indigo-600 bg-indigo-50" 
+                          : "border-slate-200 hover:border-indigo-500 hover:bg-indigo-50"
+                      )}
                     >
-                      <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
-                        <Upload className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                      <div className={cn(
+                        "p-4 rounded-2xl mb-4 transition-colors",
+                        isDragging ? "bg-indigo-600" : "bg-indigo-100 group-hover:bg-indigo-600"
+                      )}>
+                        <Upload className={cn(
+                          "w-8 h-8 transition-colors",
+                          isDragging ? "text-white" : "text-indigo-600 group-hover:text-white"
+                        )} />
                       </div>
                       <span className="font-bold text-slate-700">{fileName || 'Chọn file .docx hoặc .pdf'}</span>
-                      <span className="text-xs text-slate-400 mt-2">Hỗ trợ định dạng Word (.docx) và PDF (.pdf)</span>
+                      <span className="text-xs text-slate-400 mt-2">Kéo thả hoặc nhấn để chọn file đề thi (Word/PDF)</span>
                     </label>
                   </div>
                   {fileContent && (
