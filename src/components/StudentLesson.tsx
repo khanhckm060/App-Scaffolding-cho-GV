@@ -779,75 +779,182 @@ export default function StudentLesson() {
             exit={{ opacity: 0, y: -20 }}
             className="w-full px-2 lg:px-4"
           >
-            <div className="grid grid-cols-1 lg:grid-cols-[5.5fr_3fr_1.5fr] gap-4 items-start">
-              {/* Left: Passage */}
-              <div className="lg:sticky lg:top-24 space-y-6">
-                <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-200 overflow-hidden">
-                  <div className="bg-emerald-600 p-6 text-white">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <BookOpen className="w-5 h-5" />
-                      <span className="text-emerald-100 font-bold tracking-wider uppercase text-xs">Reading Passage</span>
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_200px] gap-8 items-start">
+              {/* Left Side: Reference Material (Passage, Signs, Dictionary) */}
+              <div className="lg:sticky lg:top-24 max-h-[calc(100vh-120px)] overflow-y-auto scrollbar-hide">
+                <div className="space-y-6">
+                  {/* Main Reading Heading */}
+                  <div className="bg-slate-900 rounded-[2rem] p-8 text-white shadow-2xl shadow-slate-200">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="bg-emerald-500 p-2 rounded-xl">
+                        <BookOpen className="w-6 h-6 text-white" />
+                      </div>
+                      <span className="text-slate-400 font-black uppercase tracking-[0.2em] text-[10px]">Reference Panel</span>
                     </div>
-                    <h1 className="text-2xl font-bold">{lesson.title}</h1>
+                    <h1 className="text-3xl font-black tracking-tight leading-tight mb-2 italic">
+                      {lesson.title}
+                    </h1>
+                    <p className="text-slate-400 text-sm font-medium">Use the information below to answer the questions on the right.</p>
                   </div>
-                    <div 
-                      ref={passageRef}
-                      onMouseUp={handlePassageSelection}
-                      className="p-8 max-h-[calc(100vh-200px)] overflow-y-auto leading-relaxed text-lg text-slate-700 whitespace-pre-wrap scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent relative selection:bg-indigo-100"
-                    >
-                      {lesson.passage 
-                        ? renderHighlightedText(lesson.passage)
-                        : renderHighlightedText(lesson.sections?.map(s => s.description).filter(Boolean).join('\n\n') || '')
-                      }
 
-                      <AnimatePresence>
-                        {showHighlightMenu && (
-                          <motion.div 
-                            initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                            style={{ 
-                              position: 'absolute',
-                              left: `${showHighlightMenu.x}px`,
-                              top: `${showHighlightMenu.y}px`,
-                              transform: 'translate(-50%, -100%)',
-                              zIndex: 100
-                            }}
-                            className="bg-white rounded-full shadow-2xl border border-slate-200 p-1.5 flex items-center space-x-2"
-                          >
-                            <button onClick={() => addHighlight('yellow')} className="w-8 h-8 rounded-full bg-yellow-400 hover:scale-110 transition-transform shadow-inner" />
-                            <button onClick={() => addHighlight('green')} className="w-8 h-8 rounded-full bg-emerald-400 hover:scale-110 transition-transform shadow-inner" />
-                            <button onClick={() => addHighlight('blue')} className="w-8 h-8 rounded-full bg-sky-400 hover:scale-110 transition-transform shadow-inner" />
-                            <div className="w-px h-6 bg-slate-200 mx-1" />
-                            <button onClick={clearHighlights} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors">
-                              <X className="w-5 h-5" />
-                            </button>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
+                  <div className="space-y-8 pb-10">
+                    {lesson.passage && (
+                      <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100 text-slate-700 leading-[1.8] text-lg font-serif">
+                        {renderHighlightedText(lesson.passage)}
+                      </div>
+                    )}
+                    
+                      {lesson.sections && lesson.sections.map((section, idx) => {
+                        let description = section.description || '';
+                        
+                        // If description is just an instruction, try to find content in questions (fallback)
+                        const isInstructionOnly = description.length < 100 && /choose|read|look|decide/i.test(description);
+                        
+                        const isSign = /\[SIGN\](.*?)\[\/SIGN\]/i.test(description);
+                        const isDictionary = /dictionary|vocabulary/i.test(section.title);
+
+                        return (
+                          <div key={`desc-${idx}`} className="group scroll-mt-24" id={`stimulus-${idx}`}>
+                            <div className="flex items-center space-x-3 mb-4">
+                              <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-3 py-1 rounded-full">{section.title} REFERENCE</span>
+                              <div className="h-px flex-1 bg-slate-100" />
+                            </div>
+                            
+                            {isSign ? (
+                              <div className="flex flex-col items-center py-6 space-y-8">
+                                {description.match(/\[SIGN\](.*?)\[\/SIGN\]/gi)?.map((match, signIdx) => {
+                                  const content = match.replace(/\[SIGN\](.*?)\[\/SIGN\]/i, '$1');
+                                  const isSpeed60 = /60/i.test(content) && (/blue/i.test(content) || /speed/i.test(content) || /round/i.test(content));
+                                  
+                                  if (isSpeed60) {
+                                    return (
+                                      <div key={`sign-${signIdx}`} className="bg-blue-600 w-56 h-56 rounded-full border-[10px] border-white shadow-2xl flex items-center justify-center relative group hover:scale-105 transition-all duration-500">
+                                        <div className="absolute inset-2 border-[2px] border-white/20 rounded-full" />
+                                        <div className="flex flex-col items-center">
+                                          <span className="text-white font-black text-8xl font-sans tracking-tight leading-none">60</span>
+                                        </div>
+                                        <div className="absolute -bottom-10 whitespace-nowrap text-[10px] font-black text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Minimum Speed Limit</div>
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div key={`sign-${signIdx}`} className="bg-white border-[6px] border-amber-500 rounded-3xl p-10 shadow-2xl shadow-amber-100/50 max-w-sm rotate-1 transform hover:rotate-0 transition-all duration-500 relative flex items-center justify-center min-h-[220px]">
+                                      <div className="absolute top-2 left-2 right-2 bottom-2 border border-amber-100 rounded-2xl pointer-events-none" />
+                                      <p className="text-amber-900 font-black text-2xl text-center leading-tight uppercase tracking-tight relative z-10 font-sans whitespace-pre-wrap">
+                                        {content}
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : isDictionary ? (
+                              <div className="bg-white border-2 border-slate-100 rounded-[2.5rem] p-10 shadow-xl shadow-slate-100/50 relative overflow-hidden group">
+                                <div className="absolute -top-10 -right-10 opacity-5 group-hover:opacity-10 transition-opacity">
+                                  <BookOpen className="w-40 h-40 text-emerald-600" />
+                                </div>
+                                <div className="relative z-10 text-slate-700">
+                                  <div className="flex items-center space-x-3 mb-4 border-b border-slate-50 pb-4">
+                                    <h4 className="text-3xl font-black text-indigo-900 italic">factor</h4>
+                                    <span className="text-sm text-slate-400 font-medium">noun</span>
+                                    <div className="flex items-center space-x-1">
+                                      <Volume2 className="w-4 h-4 text-indigo-400" />
+                                      <span className="text-xs font-mono text-indigo-600">/'fæktə(r)/</span>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-4">
+                                    <p className="font-bold text-slate-800 text-lg leading-snug">
+                                      [countable] one of several things that cause or influence something
+                                    </p>
+                                    <ul className="space-y-3 pl-4 border-l-2 border-indigo-100">
+                                      <li className="text-sm italic text-slate-600 leading-relaxed">• Obesity is a major <span className="font-bold text-indigo-700">risk factor</span> for heart disease.</li>
+                                      <li className="text-sm italic text-slate-600 leading-relaxed">• The <span className="font-bold text-indigo-700">deciding factor</span> in choosing the job offer was the opportunity for career advancement.</li>
+                                      <li className="text-sm italic text-slate-600 leading-relaxed">• Criminality is associated with a range of individual, family and <span className="font-bold text-indigo-700">environmental factors</span>.</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className={cn(
+                                "bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100 text-slate-700 leading-[1.8] text-lg transition-all hover:shadow-md whitespace-pre-wrap",
+                                (/cloze/i.test(section.title) || /comprehension/i.test(section.title)) && "font-serif"
+                              )}>
+                                {isInstructionOnly ? (
+                                  <div className="flex flex-col items-center py-6 text-slate-300">
+                                    <AlertTriangle className="w-10 h-10 mb-2 opacity-20" />
+                                    <p className="text-xs font-bold uppercase tracking-widest opacity-50">Reference Material Missing</p>
+                                    <p className="text-[10px] mt-1 italic text-center max-w-xs">{description}</p>
+                                  </div>
+                                ) : (
+                                  renderHighlightedText(description)
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                    {!lesson.passage && (!lesson.sections || lesson.sections.every(s => !s.description)) && (
+                      <div className="bg-white p-12 rounded-[2.5rem] border border-dashed border-slate-200 text-center">
+                        <FileText className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                        <p className="text-slate-400 italic text-sm">No specific reading reference for this task.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Middle: Questions */}
+              {/* Right: Questions */}
               <div className="space-y-6">
-                <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-200 p-8">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center">
-                    <HelpCircle className="w-6 h-6 mr-3 text-indigo-600" />
-                    Comprehension Questions
-                  </h2>
+                <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-200 p-8 min-h-screen">
+                  <div className="mb-10 flex items-center space-x-4 border-b border-slate-50 pb-8">
+                    <div className="bg-indigo-600 p-3 rounded-2xl shadow-lg shadow-indigo-100">
+                      <HelpCircle className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black text-slate-900 tracking-tight">Challenge Questions</h2>
+                      <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Submit your answers below</p>
+                    </div>
+                  </div>
 
-                  <div className="space-y-8">
+                  <div className="space-y-12">
                     {lesson.sections ? (
                       lesson.sections.map((section, sIdx) => (
                         <div key={`section-${section.title}-${sIdx}`} className="space-y-6">
-                          <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                            <h3 className="text-xl font-bold text-indigo-900">{section.title}</h3>
-                            {section.description && <p className="text-sm text-indigo-700 mt-1 italic">{section.description}</p>}
+                          <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
+                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{section.title}</span>
                           </div>
                           <div className="space-y-6">
                             {section.questions.map((q, qIdx) => {
                               const qKey = `${sIdx}-${qIdx}`;
+                              
+                              // Helper to render sign-like content inside middle panel if needed (optional context)
+                              const renderQuestionContent = (text: string) => {
+                                const signRegex = /\[SIGN:?\s*(.*?)\]|\[NOTICE:?\s*(.*?)\]|\[ANNOUNCEMENT:?\s*(.*?)\]/i;
+                                const match = text.match(signRegex);
+                                if (match) {
+                                  const signContent = match[1] || match[2] || match[3];
+                                  const mainQuestion = text.replace(signRegex, '').trim();
+                                  return (
+                                    <div className="space-y-4">
+                                      <div className="bg-amber-50 border-2 border-amber-500 rounded-lg p-6 text-center">
+                                        <p className="text-amber-900 font-bold uppercase tracking-widest text-lg leading-tight">
+                                          {signContent}
+                                        </p>
+                                      </div>
+                                      <p className="font-bold text-slate-800 text-lg leading-snug">
+                                        {mainQuestion}
+                                      </p>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <p className="font-bold text-slate-800 text-lg leading-snug">
+                                    {text}
+                                  </p>
+                                );
+                              };
+
                               const isCorrect = (userAns: any, correctAns: any, type: string) => {
                                 const userStr = String(userAns !== undefined ? userAns : '').toLowerCase().trim();
                                 const correctStr = String(correctAns !== undefined ? correctAns : '').toLowerCase().trim();
@@ -866,15 +973,19 @@ export default function StudentLesson() {
                               };
 
                               return (
-                                <div key={`question-${qKey}`} id={`question-${qKey}`} className="p-6 rounded-2xl border border-slate-100 bg-slate-50/50 scroll-mt-24">
-                                  <div className="flex flex-col mb-4">
-                                    <p className="font-bold text-slate-800 flex items-start">
-                                      <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 shrink-0 mt-0.5">{qIdx + 1}</span>
-                                      {q.question}
-                                    </p>
+                                <div key={`question-${qKey}`} id={`question-${qKey}`} className="p-8 rounded-[2rem] border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all scroll-mt-24 group">
+                                  <div className="flex flex-col mb-6">
+                                    <div className="flex items-start mb-2">
+                                      <span className="bg-indigo-600 text-white w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black mr-3 shrink-0 mt-0.5 shadow-lg shadow-indigo-100 border border-indigo-400 group-hover:scale-110 transition-transform">
+                                        {qIdx + 1}
+                                      </span>
+                                      <div className="flex-1">
+                                        {renderQuestionContent(q.question)}
+                                      </div>
+                                    </div>
                                     {q.type === 'trueFalse' && (
                                       <p className="text-[10px] font-bold text-indigo-500 mt-1 ml-9 uppercase tracking-wider italic text-left">
-                                        Hướng dẫn: Điền TRUE, FALSE hoặc NOT GIVEN.
+                                        Hướng dẫn: Chọn TRUE hoặc FALSE.
                                       </p>
                                     )}
                                     {q.type === 'gapFill' && (
@@ -915,7 +1026,36 @@ export default function StudentLesson() {
                                     </div>
                                   )}
 
-                                  {(q.type === 'trueFalse' || q.type === 'matching' || q.type === 'gapFill' || q.type === 'openEnded') && (
+                                  {q.type === 'trueFalse' && (
+                                    <div className="flex space-x-3 mt-4 ml-9">
+                                      {['TRUE', 'FALSE'].map((option) => (
+                                        <button
+                                          key={`${qKey}-tf-${option}`}
+                                          onClick={() => {
+                                            if (readingChecked) return;
+                                            const newAnswers = { ...answers.reading, [qKey]: option };
+                                            setAnswers({ ...answers, reading: newAnswers });
+                                          }}
+                                          className={cn(
+                                            "px-8 py-3 rounded-xl font-bold transition-all border-2",
+                                            answers.reading[qKey] === option
+                                              ? readingChecked
+                                                ? option === String(q.answer).toUpperCase()
+                                                  ? "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-100"
+                                                  : "bg-red-500 border-red-500 text-white shadow-lg shadow-red-100"
+                                                : "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100"
+                                              : readingChecked && option === String(q.answer).toUpperCase()
+                                                ? "bg-emerald-50 border-emerald-500 text-emerald-600"
+                                                : "bg-white border-slate-200 text-slate-400 hover:border-indigo-300 hover:text-indigo-600"
+                                          )}
+                                        >
+                                          {option}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {(q.type === 'matching' || q.type === 'gapFill' || q.type === 'openEnded') && (
                                     <div className="space-y-3">
                                       <input 
                                         type="text"
@@ -1106,33 +1246,68 @@ export default function StudentLesson() {
                 <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-3">
                   <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Question Grid</h3>
                   <div className="grid grid-cols-5 gap-1">
-                    {lesson.readingQuestions?.map((_, i) => (
-                      <button
-                        key={`q-grid-btn-${i}`}
-                        onClick={() => {
-                          const el = document.getElementById(`question-${i}`);
-                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }}
-                        className={cn(
-                          "w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold transition-all border",
-                          answers.reading[i] !== undefined && answers.reading[i] !== ""
-                            ? readingChecked
-                              ? (() => {
-                                  const userAns = answers.reading[i];
-                                  const q = lesson.readingQuestions?.[i];
-                                  if (!q) return false;
-                                  if (q.type === 'multipleChoice') return userAns === q.answer;
-                                  return (userAns || '').toLowerCase().trim() === String(q.answer).toLowerCase().trim();
-                                })()
-                                ? "bg-emerald-500 border-emerald-500 text-white"
-                                : "bg-red-500 border-red-500 text-white"
-                              : "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100"
-                            : "bg-white border-slate-100 text-slate-400 hover:border-indigo-300 hover:text-indigo-600"
-                        )}
-                      >
-                        {i + 1}
-                      </button>
-                    ))}
+                    {lesson.sections ? (
+                      lesson.sections.map((section, sIdx) => (
+                        section.questions.map((_, qIdx) => {
+                          const qKey = `${sIdx}-${qIdx}`;
+                          return (
+                            <button
+                              key={`q-grid-btn-${qKey}`}
+                              onClick={() => {
+                                const el = document.getElementById(`question-${qKey}`);
+                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              }}
+                              className={cn(
+                                "w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold transition-all border",
+                                answers.reading[qKey] !== undefined && answers.reading[qKey] !== ""
+                                  ? readingChecked
+                                    ? (() => {
+                                        const userAns = answers.reading[qKey];
+                                        const q = section.questions[qIdx];
+                                        if (!q) return false;
+                                        if (q.type === 'multipleChoice') return String(userAns) === String(q.answer);
+                                        return String(userAns || '').toLowerCase().trim() === String(q.answer).toLowerCase().trim();
+                                      })()
+                                      ? "bg-emerald-500 border-emerald-500 text-white"
+                                      : "bg-red-500 border-red-500 text-white"
+                                    : "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100"
+                                  : "bg-white border-slate-100 text-slate-400 hover:border-indigo-300 hover:text-indigo-600"
+                              )}
+                            >
+                              {qIdx + 1}
+                            </button>
+                          );
+                        })
+                      ))
+                    ) : (
+                      lesson.readingQuestions?.map((_, i) => (
+                        <button
+                          key={`q-grid-btn-${i}`}
+                          onClick={() => {
+                            const el = document.getElementById(`question-${i}`);
+                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }}
+                          className={cn(
+                            "w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold transition-all border",
+                            answers.reading[i] !== undefined && answers.reading[i] !== ""
+                              ? readingChecked
+                                ? (() => {
+                                    const userAns = answers.reading[i];
+                                    const q = lesson.readingQuestions?.[i];
+                                    if (!q) return false;
+                                    if (q.type === 'multipleChoice') return String(userAns) === String(q.answer);
+                                    return (userAns || '').toLowerCase().trim() === String(q.answer).toLowerCase().trim();
+                                  })()
+                                  ? "bg-emerald-500 border-emerald-500 text-white"
+                                  : "bg-red-500 border-red-500 text-white"
+                                : "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100"
+                              : "bg-white border-slate-100 text-slate-400 hover:border-indigo-300 hover:text-indigo-600"
+                          )}
+                        >
+                          {i + 1}
+                        </button>
+                      ))
+                    )}
                   </div>
                   <div className="mt-6 pt-6 border-t border-slate-100">
                     <div className="flex items-center justify-between text-sm font-bold text-slate-500 mb-2">
@@ -1590,7 +1765,7 @@ export default function StudentLesson() {
                             <>
                               {feedback.map((item: any, idx: number) => (
                                 <span 
-                                  key={`feedback-item-${idx}`}
+                                  key={`feedback-item-${i}-${idx}`}
                                   className={cn(
                                     "px-2 py-1 rounded font-bold text-lg",
                                     item.isCorrect ? "text-emerald-600" : "text-amber-500 bg-amber-50"
@@ -2055,7 +2230,7 @@ function StepHeader({ current, total, title, icon: Icon }: { current: number, to
       <div className="flex space-x-2">
         {[1, 2, 3, 4, 5, 6].map(s => (
           <div 
-            key={`step-progress-${s}`} 
+            key={`step-progress-${current}-${s}`} 
             className={cn(
               "w-10 h-2 rounded-full transition-all duration-500",
               s <= current ? "bg-indigo-600" : "bg-slate-200"

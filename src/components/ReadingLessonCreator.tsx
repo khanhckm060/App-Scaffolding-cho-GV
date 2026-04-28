@@ -27,6 +27,8 @@ export default function ReadingLessonCreator() {
   const [fileName, setFileName] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [numPassages, setNumPassages] = useState(1);
+  const [manualSigns, setManualSigns] = useState('');
+  const [manualReadingPassage, setManualReadingPassage] = useState('');
   const [passingScore, setPassingScore] = useState(8.0);
   const [questionTypes, setQuestionTypes] = useState({
     matching: true,
@@ -154,9 +156,26 @@ export default function ReadingLessonCreator() {
            
            Organize the questions into sections (I, II, III, IV, V, VI, VII, etc.) as they appear in the exam.
            Each section should have a title (e.g., "SECTION I: LISTENING", "SECTION II: READING", "SECTION III: GRAMMAR").
+           
+           IMPORTANT FOR DATA EXTRACTION:
+           1. EVERY SECTION must have its reference material in the 'description' field. This is the content students READ to answer questions.
+           2. For SECTION II (SIGNS/NOTICES): Extract the literal content of the sign. Wrap it in [SIGN]...[/SIGN]. 
+              - For the speed limit sign, use EXACTLY: [SIGN]Traffic Sign — Round shape, BLUE background, WHITE border. Large WHITE number "60" displayed in the center[/SIGN].
+              - For the Book Fair notice, include the EXACT text: "ANNUAL BOOK FAIR, Date: October 15-20, Time: 9:00 a.m. – 8:00 p.m., Venue: City Convention Centre. Highlights: Special talk by CEO, English books discounts, Children's reading corner."
+           3. For SECTION IV (READING): The 'description' must contain the FULL 2-paragraph passage about Television exactly as in the file.
+           4. For SECTION VI (DICTIONARY ENTRY): The 'description' must contain the FULL dictionary definition for "factor", including IPA /'fæktə(r)/, definition "[countable] one of several things...", and all 3 examples sentences.
+           5. Question Types: 
+              - In Section IV, ensure questions 23-26 are marked as 'trueFalse' type (only TRUE or FALSE).
+              - Ensure questions 27-28 are 'multipleChoice'.
+           6. The 'description' is what appears in the LEFT PANEL. DO NOT put instructions like "Look at the sign" there. Put the ACTUAL CONTENT of the sign/passage/dictionary.
+           
            If the original text has answers or explanations, extract them. If not, generate accurate answers and detailed explanations for each question.
            
-           Text: ${fileContent}
+           Text from file: ${fileContent}
+           
+           ADDITIONAL REFERENCE MATERIAL (USE THIS FOR SECTIONS II and IV):
+           - SIGNS (SECTION II): ${manualSigns}
+           - READING PASSAGE (SECTION IV): ${manualReadingPassage}
            
            Return the result in JSON format with the following structure:
            {
@@ -519,10 +538,49 @@ export default function ReadingLessonCreator() {
                     </label>
                   </div>
                   {fileContent && (
-                    <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center space-x-3">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                      <span className="text-sm text-emerald-700 font-medium">Đã đọc nội dung file thành công</span>
-                    </div>
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mt-6 space-y-4"
+                    >
+                      <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center space-x-3">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                        <span className="text-sm text-emerald-700 font-bold">Đã đọc file: {fileName}</span>
+                      </div>
+
+                      <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                        <h4 className="text-sm font-black text-slate-700 uppercase tracking-widest mb-4 flex items-center">
+                          <Plus className="w-4 h-4 mr-2 text-indigo-600" />
+                          Bổ sung ngữ liệu (Stimulus)
+                        </h4>
+                        
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                              Ngữ liệu Section II (Biển báo/Thông báo)
+                            </label>
+                            <textarea 
+                              value={manualSigns}
+                              onChange={(e) => setManualSigns(e.target.value)}
+                              placeholder="Mô tả biển báo hoặc dán nội dung thông báo... (VD: [SIGN]Cấm rẽ trái[/SIGN])"
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all h-24 text-sm font-medium"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                              Đoạn văn Section IV (Reading Comprehension)
+                            </label>
+                            <textarea 
+                              value={manualReadingPassage}
+                              onChange={(e) => setManualReadingPassage(e.target.value)}
+                              placeholder="Dán toàn bộ đoạn văn bài đọc vào đây..."
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all h-32 text-sm font-medium"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
                   )}
                 </motion.div>
               )}
