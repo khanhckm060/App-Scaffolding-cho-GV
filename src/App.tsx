@@ -388,7 +388,7 @@ export default function App() {
             ) : <Navigate to="/" />} />
             <Route path="/student" element={<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><StudentDashboard /></div>} />
             <Route path="/teacher/new/listening" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><LessonCreator /></div> : <Navigate to="/teacher" />} />
-            <Route path="/teacher/new/reading" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><ReadingLessonCreator /></div> : <Navigate to="/teacher" />} />
+            <Route path="/teacher/new/reading" element={user?.email === 'khanhckm060@gmail.com' ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><ReadingLessonCreator /></div> : <Navigate to="/teacher" />} />
             <Route path="/teacher/new/writing" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><WritingLessonCreator /></div> : <Navigate to="/teacher" />} />
             <Route path="/teacher/analytics/:lessonId" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><LessonAnalytics /></div> : <Navigate to="/teacher" />} />
             <Route path="/lesson/:lessonId" element={<LessonRouter />} />
@@ -419,6 +419,17 @@ function LessonRouter() {
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
   if (!lesson) return <div className="text-center py-20">Không tìm thấy bài học.</div>;
+
+  if (lesson.type === 'reading' && localStorage.getItem('studentEmail') !== 'khanhckm060@gmail.com' && auth.currentUser?.email !== 'khanhckm060@gmail.com') {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-200">
+        <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
+        <h2 className="text-xl font-bold text-slate-900">Tính năng Đọc (Reading) đang được bảo trì</h2>
+        <p className="text-slate-500 mt-2">Tính năng này hiện chỉ dành cho quản trị viên kiểm tra.</p>
+        <Link to="/" className="mt-6 text-indigo-600 font-bold hover:underline">Quay lại trang chủ</Link>
+      </div>
+    );
+  }
 
   if (lesson.type === 'writing') {
     return <WritingLessonView />;
@@ -563,16 +574,32 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
                   <span className="text-xl font-bold text-slate-900">Nghe</span>
                 </Link>
 
-                <Link 
-                  to="/teacher/new/reading"
-                  onClick={() => setShowCreateOptions(false)}
-                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
-                >
-                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
-                    <BookOpen className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                {user?.email === 'khanhckm060@gmail.com' ? (
+                  <Link 
+                    to="/teacher/new/reading"
+                    onClick={() => setShowCreateOptions(false)}
+                    className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
+                  >
+                    <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
+                      <BookOpen className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                    </div>
+                    <span className="text-xl font-bold text-slate-900">Đọc</span>
+                  </Link>
+                ) : (
+                  <div 
+                    className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 opacity-50 cursor-not-allowed relative grayscale group"
+                    title="Feature locked - Under testing"
+                  >
+                    <div className="absolute top-4 right-4 bg-slate-400 text-white text-[10px] font-bold px-2 py-1 rounded-full">
+                      Testing Locked
+                    </div>
+                    <div className="bg-slate-100 p-4 rounded-2xl mb-4">
+                      <BookOpen className="w-8 h-8 text-slate-400" />
+                    </div>
+                    <span className="text-xl font-bold text-slate-400">Đọc</span>
+                    <p className="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-widest text-center">Đang bảo trì/test</p>
                   </div>
-                  <span className="text-xl font-bold text-slate-900">Đọc</span>
-                </Link>
+                )}
 
                 <Link 
                   to="/teacher/new/writing"

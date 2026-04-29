@@ -82,7 +82,13 @@ export default function StudentDashboard() {
         const assignmentsWithLessons = assignmentData.map(assign => ({
           ...assign,
           lesson: lessonsMap[assign.lessonId]
-        }));
+        })).filter(assign => {
+          // If it's a reading lesson, only show for khanhckm060@gmail.com
+          if (assign.lesson?.type === 'reading') {
+            return email.toLowerCase().trim() === 'khanhckm060@gmail.com';
+          }
+          return true;
+        });
         
         setAssignments(assignmentsWithLessons);
       } catch (error: any) {

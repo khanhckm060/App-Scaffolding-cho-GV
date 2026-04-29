@@ -104,6 +104,17 @@ export default function StudentLesson() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data() as Lesson;
+          
+          // Protection for Reading lessons
+          if (data.type === 'reading' && 
+              studentEmail.toLowerCase().trim() !== 'khanhckm060@gmail.com' && 
+              localStorage.getItem('studentEmail') !== 'khanhckm060@gmail.com' &&
+              auth.currentUser?.email !== 'khanhckm060@gmail.com') {
+            setError("Tính năng Đọc hiện đang được bảo trì. Vui lòng quay lại sau.");
+            setLoading(false);
+            return;
+          }
+
           setLesson({ id: docSnap.id, ...data } as Lesson);
           if (data.type === 'listening' && data.steps?.step2?.phrases) {
             setDictationFeedback(new Array(data.steps.step2.phrases.length).fill([]));

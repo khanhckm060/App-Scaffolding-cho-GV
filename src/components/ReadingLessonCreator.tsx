@@ -15,6 +15,29 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/$
 
 export default function ReadingLessonCreator() {
   const navigate = useNavigate();
+  
+  if (auth.currentUser?.email !== 'khanhckm060@gmail.com') {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-12">
+        <div className="bg-white p-12 rounded-[3rem] border border-slate-200 shadow-xl text-center">
+          <div className="bg-amber-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-10 h-10 text-amber-600" />
+          </div>
+          <h2 className="text-3xl font-extrabold text-slate-900 mb-4">Tính năng Đọc đang được bảo trì</h2>
+          <p className="text-slate-500 text-lg mb-8 max-w-md mx-auto">
+            Chúng tôi đang nâng cấp hệ thống tạo bài tập Đọc (Reading AI). Hiện tại tính năng này chỉ mở cho quản trị viên kiểm tra.
+          </p>
+          <button 
+            onClick={() => navigate('/teacher')}
+            className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg active:scale-95"
+          >
+            Quay lại Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
