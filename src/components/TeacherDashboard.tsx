@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, deleteDoc, doc, orderBy, addDoc, ser
 import { db, auth } from '../firebase';
 import { Lesson, Class, Student, Assignment, Result } from '../types';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, Edit2, ExternalLink, BarChart2, Calendar, BookOpen, Users, GraduationCap, Send, ChevronRight, UserPlus, Mail, Phone, Clock, CheckCircle2, AlertCircle, AlertTriangle, Share2, Copy, Headphones, Mic, PenTool, X, Download, Loader2, FileSpreadsheet } from 'lucide-react';
+import { Plus, Trash2, Edit2, ExternalLink, BarChart2, Calendar, BookOpen, Users, GraduationCap, Send, ChevronRight, UserPlus, Mail, Phone, Clock, CheckCircle2, AlertCircle, AlertTriangle, Share2, Copy, Headphones, Mic, PenTool, X, Download, Loader2, FileSpreadsheet, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { downloadWorksheet } from '../lib/worksheet';
@@ -225,33 +225,42 @@ export default function TeacherDashboard() {
       createdAt: new Date().toISOString()
     });
 
-    // Email notification feature disabled for now
-    /*
+    let notificationStatus = "";
     try {
-      await fetch('/api/notify-assignment', {
+      const response = await fetch('/api/notify-assignment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           assignmentId: assignmentRef.id,
           lessonId: selectedLessonForAssign.id,
           lessonTitle: selectedLessonForAssign.title || 'Bài tập mới',
-          classId: selectedClassId,
+          lessonType: selectedLessonForAssign.type || 'listening',
           className: selectedClass.name,
           studentEmails,
           deadline: deadline.toISOString(),
           passingPercentage: assignPassingPercentage,
-          teacherName: auth.currentUser.displayName || 'Giáo viên'
+          teacherName: auth.currentUser.displayName || 'Giáo viên',
+          teacherEmail: auth.currentUser.email,
+          appBaseUrl: window.location.origin
         })
       });
+
+      if (response.ok) {
+        const data = await response.json();
+        notificationStatus = ` Đã gửi email cho ${data.sent}/${studentEmails.length} học sinh.`;
+      } else {
+        console.error("Failed to trigger notifications via API status:", response.status);
+        notificationStatus = " (Lưu ý: Không gửi được email thông báo)";
+      }
     } catch (err) {
       console.error("Failed to trigger notifications:", err);
+      notificationStatus = " (Lưu ý: Không gửi được email thông báo)";
     }
-    */
     
     setShowAssignModal(false);
     setSelectedLessonForAssign(null);
     fetchData(auth.currentUser.uid);
-    alert("Bài tập đã được giao thành công!");
+    alert(`Bài tập đã được giao thành công!${notificationStatus}`);
   };
 
   const deleteLesson = async (id: string) => {
@@ -708,6 +717,18 @@ export default function TeacherDashboard() {
                                       <Users className="w-3 h-3 mr-1" />
                                       Đã làm: {completionCount}/{classStudents.length}
                                     </span>
+                                    {(assignment as any).notificationSent && (
+                                      <span className="flex items-center text-indigo-600 font-bold" title="Đã gửi email thông báo">
+                                        <Mail className="w-3 h-3 mr-1" />
+                                        📧 Đã gửi mail
+                                      </span>
+                                    )}
+                                    {(assignment as any).reminderSent && (
+                                      <span className="flex items-center text-orange-600 font-bold" title="Đã gửi email nhắc nhở trước 4h">
+                                        <Bell className="w-3 h-3 mr-1" />
+                                        Nhắc nhở
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
