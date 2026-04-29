@@ -263,6 +263,43 @@ export default function TeacherDashboard() {
     alert(`Bài tập đã được giao thành công!${notificationStatus}`);
   };
 
+  const resendNotification = async (assignment: any) => {
+    if (!auth.currentUser) return;
+    
+    // Find identifying class and lesson info
+    const cls = classes.find(c => c.id === assignment.classId);
+    
+    try {
+      const response = await fetch('/api/notify-assignment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assignmentId: assignment.id,
+          lessonId: assignment.lessonId,
+          lessonTitle: assignment.lessonTitle || 'Bài tập mới',
+          className: assignment.className || (cls?.name || 'Lớp học'),
+          studentEmails: assignment.studentEmails,
+          deadline: assignment.deadline,
+          passingPercentage: assignment.passingPercentage || 80,
+          teacherName: auth.currentUser.displayName || 'Giáo viên',
+          teacherEmail: auth.currentUser.email,
+          appBaseUrl: window.location.origin
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Đã gửi lại thông báo! Đã gửi cho ${data.sent}/${assignment.studentEmails?.length} học sinh.`);
+        fetchData(auth.currentUser.uid);
+      } else {
+        alert("Gửi thông báo thất bại. Vui lòng kiểm tra cấu hình.");
+      }
+    } catch (err) {
+      console.error("Resend error:", err);
+      alert("Lỗi khi gửi lại thông báo.");
+    }
+  };
+
   const deleteLesson = async (id: string) => {
     if (!confirm("Bạn có chắc chắn muốn xóa bài tập này?")) return;
     await deleteDoc(doc(db, 'lessons', id));
@@ -738,6 +775,13 @@ export default function TeacherDashboard() {
                                 ) : (
                                   <span className="px-3 py-1 bg-green-50 text-green-600 rounded-full text-xs font-bold">Đang diễn ra</span>
                                 )}
+                                <button 
+                                  onClick={() => resendNotification(assignment)}
+                                  className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                                  title="Gửi lại email thông báo"
+                                >
+                                  <Mail className="w-5 h-5" />
+                                </button>
                                 <button 
                                   onClick={() => {
                                     const link = `${window.location.origin}/lesson/${assignment.lessonId}?assignmentId=${assignment.id}`;

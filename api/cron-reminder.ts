@@ -1,7 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { getDb, admin } from './_lib/firebaseAdmin.js';
-import { sendEmailBatch } from './_lib/resend.js';
-import { buildReminderEmail } from './_lib/emailTemplates.js';
+import { getDb, admin } from './_lib/firebaseAdmin';
+import { sendEmailBatch } from './_lib/resend';
+import { buildReminderEmail } from './_lib/emailTemplates';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Cron security check

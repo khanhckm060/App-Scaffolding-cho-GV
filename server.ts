@@ -51,14 +51,27 @@ async function sendEmail(to: string, subject: string, body: string, teacherName:
   console.log(`[EMAIL BYPASSED] To: ${to}, Subject: ${subject}`);
 }
 
-// API: Notify assignment creation (Disabled)
-app.post("/api/notify-assignment", (req, res) => {
-  res.json({ success: true, message: "Email feature is currently disabled." });
+import notifyAssignmentHandler from "./api/notify-assignment";
+import cronReminderHandler from "./api/cron-reminder";
+
+// API: Notify assignment creation
+app.post("/api/notify-assignment", async (req, res) => {
+  try {
+    await notifyAssignmentHandler(req as any, res as any);
+  } catch (error) {
+    console.error("API Route Error:", error);
+    res.status(500).json({ error: "Internal Server Error in local dev relay" });
+  }
 });
 
-// API: Trigger reminders (Disabled)
-app.get("/api/internal/check-reminders", (req, res) => {
-  res.json({ success: true, message: "Reminder feature is currently disabled." });
+// API: Trigger reminders (Vercel Cron equivalent for local testing)
+app.get("/api/cron-reminder", async (req, res) => {
+  try {
+    await cronReminderHandler(req as any, res as any);
+  } catch (error) {
+    console.error("API Route Error:", error);
+    res.status(500).json({ error: "Internal Server Error in local dev relay" });
+  }
 });
 
 async function startServer() {

@@ -1,7 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { getDb } from './_lib/firebaseAdmin.js';
-import { sendEmailBatch } from './_lib/resend.js';
-import { buildAssignmentEmail } from './_lib/emailTemplates.js';
+import { getDb } from './_lib/firebaseAdmin';
+import { sendEmailBatch } from './_lib/resend';
+import { buildAssignmentEmail } from './_lib/emailTemplates';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS setup
