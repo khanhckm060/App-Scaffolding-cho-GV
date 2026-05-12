@@ -856,8 +856,14 @@ export default function TeacherDashboard() {
               {lessonsCategory === 'speaking' ? (
                 <>
                   <Mic className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-slate-900 mb-2">Kỹ năng Nói đang phát triển</h3>
-                  <p className="text-slate-500">Tính năng tạo bài tập Speaking AI sẽ sớm ra mắt.</p>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Chưa có bài tập Nói nào</h3>
+                  <p className="text-slate-500 mb-6">Bắt đầu bằng cách tạo bài tập Speaking AI đầu tiên của bạn.</p>
+                  <button 
+                    onClick={() => setShowCreateTypeModal(true)}
+                    className="inline-block bg-indigo-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-all font-bold"
+                  >
+                    Tạo bài Nói ngay
+                  </button>
                 </>
               ) : (
                 <>
@@ -1201,17 +1207,6 @@ export default function TeacherDashboard() {
                         <span className="font-bold text-slate-900">Nói</span>
                       </button>
                     </div>
-                  ) : assignCategory === 'speaking' ? (
-                    <div className="text-center py-12">
-                      <Mic className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                      <p className="text-slate-500 font-medium">Chưa có bài tập kỹ năng Nói.</p>
-                      <button 
-                        onClick={() => setAssignCategory(null)}
-                        className="mt-4 text-indigo-600 font-bold hover:underline"
-                      >
-                        Quay lại
-                      </button>
-                    </div>
                   ) : (
                     <div className="space-y-3">
                       <button 
@@ -1429,15 +1424,16 @@ export default function TeacherDashboard() {
                   <span className="text-xl font-bold text-slate-900">Đọc</span>
                 </button>
 
-                <button 
-                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed"
-                  title="Coming soon"
+                <Link 
+                  to="/teacher/new/speaking"
+                  onClick={() => setShowCreateTypeModal(false)}
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
                 >
                   <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
                     <Mic className="w-8 h-8 text-indigo-600 group-hover:text-white" />
                   </div>
                   <span className="text-xl font-bold text-slate-900">Nói</span>
-                </button>
+                </Link>
 
                 <Link 
                   to="/teacher/new/writing"

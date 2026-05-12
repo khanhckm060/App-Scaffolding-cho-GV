@@ -10,8 +10,10 @@ import {
   Check, X, Trophy, Share2, User, ChevronRight, ChevronLeft,
   Info, Type as TypeIcon, FileText, HelpCircle, BookOpen,
   GraduationCap, Headphones, Mail, AlertCircle, Loader2,
-  Mic, Square, ExternalLink, AlertTriangle, Download
+  Mic, Square, ExternalLink, AlertTriangle, Download, LogIn
 } from 'lucide-react';
+import WritingLessonView from './WritingLessonView';
+import StudentSpeakingExercise from './StudentSpeakingExercise';
 import { QRCodeSVG } from 'qrcode.react';
 import { cn, isInAppBrowser, getDirectAudioUrl } from '../lib/utils';
 import jsPDF from 'jspdf';
@@ -777,6 +779,37 @@ export default function StudentLesson() {
   );
 
   const lessonType = lesson.type || 'listening';
+
+  if (lessonType === 'speaking') {
+    if (!studentEmail) {
+      return (
+        <div className="max-w-md mx-auto py-20 px-4">
+          <div className="bg-white rounded-3xl p-10 border border-slate-200 shadow-xl text-center">
+            <Mic className="w-16 h-16 text-indigo-600 mx-auto mb-6" />
+            <h2 className="text-2xl font-bold text-slate-900 mb-4">Luyện Phát Âm AI</h2>
+            <p className="text-slate-500 mb-8 font-medium">Vui lòng đăng nhập để bắt đầu bài luyện tập Speaking.</p>
+            <button 
+              onClick={handleGoogleSignIn}
+              className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold flex items-center justify-center"
+            >
+              <LogIn className="w-5 h-5 mr-2" /> Đăng nhập bằng Google
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <StudentSpeakingExercise 
+        lesson={lesson}
+        assignmentId={assignmentId || undefined}
+        studentEmail={studentEmail}
+        studentName={studentName}
+        onComplete={() => setStep(7)}
+      />
+    );
+  }
+
   const currentUrl = window.location.href;
 
   return (

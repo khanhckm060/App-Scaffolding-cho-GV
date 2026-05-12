@@ -7,6 +7,7 @@ import TeacherDashboard from './components/TeacherDashboard';
 import StudentDashboard from './components/StudentDashboard';
 import LessonCreator from './components/LessonCreator';
 import ReadingLessonCreator from './components/ReadingLessonCreator';
+import SpeakingLessonCreator from './components/SpeakingLessonCreator';
 import WritingLessonCreator from './components/WritingLessonCreator';
 import StudentLesson from './components/StudentLesson';
 import WritingLessonView from './components/WritingLessonView';
@@ -389,6 +390,7 @@ export default function App() {
             <Route path="/student" element={<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><StudentDashboard /></div>} />
             <Route path="/teacher/new/listening" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><LessonCreator /></div> : <Navigate to="/teacher" />} />
             <Route path="/teacher/new/reading" element={user?.email === 'khanhckm060@gmail.com' ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><ReadingLessonCreator /></div> : <Navigate to="/teacher" />} />
+            <Route path="/teacher/new/speaking" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><SpeakingLessonCreator /></div> : <Navigate to="/teacher" />} />
             <Route path="/teacher/new/writing" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><WritingLessonCreator /></div> : <Navigate to="/teacher" />} />
             <Route path="/teacher/analytics/:lessonId" element={user ? <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><LessonAnalytics /></div> : <Navigate to="/teacher" />} />
             <Route path="/lesson/:lessonId" element={<LessonRouter />} />
@@ -612,18 +614,16 @@ function Home({ user, login, isLoggingIn }: { user: User | null, login: () => vo
                   <span className="text-xl font-bold text-slate-900">Viết</span>
                 </Link>
 
-                <button 
-                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed relative"
-                  title="Coming soon"
+                <Link 
+                  to="/teacher/new/speaking"
+                  onClick={() => setShowCreateOptions(false)}
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
                 >
-                  <div className="absolute top-4 right-4 bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded-full">
-                    Coming soon
-                  </div>
                   <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
                     <Mic className="w-8 h-8 text-indigo-600 group-hover:text-white" />
                   </div>
                   <span className="text-xl font-bold text-slate-900">Nói</span>
-                </button>
+                </Link>
               </div>
             </motion.div>
           </div>

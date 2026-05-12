@@ -101,6 +101,47 @@ export const LEVEL_DESCRIPTIONS: Record<LessonLevel, string> = {
 
 export type LessonType = 'listening' | 'reading' | 'speaking' | 'writing';
 
+export interface WordAssessment {
+  word: string;
+  accuracyScore: number;      // 0-100
+  errorType: 'None' | 'Mispronunciation' | 'Omission' | 'Insertion';
+}
+
+export interface PronunciationResult {
+  accuracyScore: number;      // 0-100
+  fluencyScore: number;       // 0-100 (chỉ có ở Step 4)
+  completenessScore: number;  // 0-100
+  pronunciationScore: number; // 0-100 (overall)
+  words: WordAssessment[];
+}
+
+export interface SpeakingLessonExtras {
+  paragraph: string;          // Đoạn script
+  speakingVocabulary: string[];       // Từ vựng cần phát âm đúng
+  phrases: string[];          // Auto-extracted phrases
+  sentences: string[];        // Auto-extracted sentences
+  passingPercentages: {
+    vocab: number;      // 0-100, ví dụ 80
+    phrase: number;
+    sentence: number;
+    pronunciation: number;  // Step 4 - Phát âm
+    fluency: number;        // Step 4 - Trôi chảy
+  };
+}
+
+export interface SpeakingSubmission {
+  id?: string;
+  assignmentId: string;
+  studentEmail: string;
+  studentName: string;
+  step1Results: PronunciationResult[];  // 1 result per vocab
+  step2Results: PronunciationResult[];  // 1 result per phrase
+  step3Results: PronunciationResult[];  // 1 result per sentence
+  step4Result: PronunciationResult;     // 1 result for paragraph
+  overallScore: number;
+  completedAt: string;
+}
+
 export interface Lesson {
   id?: string;
   type: LessonType;
@@ -117,6 +158,7 @@ export interface Lesson {
   grammarPoint?: string; // For writing context
   steps?: ScaffoldingSteps; // For listening
   writingSteps?: WritingSteps; // For writing
+  speakingExtras?: SpeakingLessonExtras; // For speaking
   readingQuestions?: ReadingQuestion[]; // For reading (legacy or flat)
   sections?: ExamSection[]; // For structured exams
   teacherId: string;
