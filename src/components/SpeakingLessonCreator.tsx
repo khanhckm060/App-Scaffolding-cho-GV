@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { LessonLevel, LEVEL_DESCRIPTIONS } from '../types';
 import { extractPhrases } from '../utils/extractPhrases';
 import { extractSentences } from '../utils/extractSentences';
+import { cleanScript } from '../utils/cleanScript';
 import { cn } from '../lib/utils';
 
 const SpeakingLessonCreator: React.FC = () => {
@@ -18,8 +19,11 @@ const SpeakingLessonCreator: React.FC = () => {
   const [vocabInput, setVocabInput] = useState('');
   const [vocabulary, setVocabulary] = useState<string[]>([]);
   
-  const [extractedPhrases, setExtractedPhrases] = useState<string[]>([]);
-  const [extractedSentences, setExtractedSentences] = useState<string[]>([]);
+  const [customPhrases, setCustomPhrases] = useState<string[]>([]);
+  const [customSentences, setCustomSentences] = useState<string[]>([]);
+  
+  const [newPhrase, setNewPhrase] = useState('');
+  const [newSentence, setNewSentence] = useState('');
   
   const [passingPercentages, setPassingPercentages] = useState({
     vocab: 80,
@@ -31,12 +35,13 @@ const SpeakingLessonCreator: React.FC = () => {
 
   // Auto extract phrases and sentences when paragraph or vocab changes
   useEffect(() => {
-    if (paragraph.length > 10 && vocabulary.length > 0) {
-      setExtractedPhrases(extractPhrases(paragraph, vocabulary));
-      setExtractedSentences(extractSentences(paragraph, vocabulary));
+    const cleaned = cleanScript(paragraph);
+    if (cleaned.length > 10 && vocabulary.length > 0) {
+      setCustomPhrases(extractPhrases(cleaned, vocabulary));
+      setCustomSentences(extractSentences(cleaned, vocabulary));
     } else {
-      setExtractedPhrases([]);
-      setExtractedSentences([]);
+      setCustomPhrases([]);
+      setCustomSentences([]);
     }
   }, [paragraph, vocabulary]);
 
@@ -96,6 +101,7 @@ const SpeakingLessonCreator: React.FC = () => {
 
     setLoading(true);
     try {
+      const cleanedParagraph = cleanScript(paragraph);
       await addDoc(collection(db, 'lessons'), {
         type: 'speaking',
         title,
@@ -103,9 +109,10 @@ const SpeakingLessonCreator: React.FC = () => {
         vocabulary: [], // Keep compatibility with general Lesson type
         speakingExtras: {
           paragraph,
+          cleanedParagraph,
           speakingVocabulary: vocabulary,
-          phrases: extractedPhrases,
-          sentences: extractedSentences,
+          phrases: customPhrases,
+          sentences: customSentences,
           passingPercentages
         },
         teacherId: auth.currentUser.uid,
@@ -224,31 +231,86 @@ const SpeakingLessonCreator: React.FC = () => {
               </div>
             </div>
 
-            {/* Previews */}
-            <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-6">
-              <h3 className="text-lg font-extrabold text-slate-900 flex items-center">
-                <ChevronRight className="w-6 h-6 text-indigo-600 mr-2" /> Kết quả tự động tách (Auto-extract)
+            {/* Previews & Customization */}
+            <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-8">
+              <h3 className="text-xl font-extrabold text-slate-900 flex items-center">
+                <ChevronRight className="w-6 h-6 text-indigo-600 mr-2" /> Tùy chỉnh Steps luyện tập
               </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center">
-                    <BookOpen className="w-4 h-4 mr-1" /> Phrases (Step 2)
+              <div className="grid grid-cols-1 gap-8">
+                {/* Phrases Section */}
+                <div className="space-y-4">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest flex items-center">
+                    <BookOpen className="w-5 h-5 mr-2" /> Phrases (Step 2)
                   </label>
-                  <div className="space-y-2">
-                    {extractedPhrases.length > 0 ? extractedPhrases.map((p, i) => (
-                      <div key={i} className="px-4 py-2 bg-slate-50 rounded-xl text-sm font-medium border border-slate-100">{p}</div>
-                    )) : <p className="text-xs text-slate-400 italic">Nhập từ vựng để tách phrases...</p>}
+                  <div className="flex flex-wrap gap-2">
+                    {customPhrases.map((p, i) => (
+                      <div key={i} className="flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-sm font-bold border border-slate-100 group transition-colors">
+                        <span>{p}</span>
+                        <button 
+                          onClick={() => setCustomPhrases(prev => prev.filter((_, idx) => idx !== i))}
+                          className="text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      value={newPhrase}
+                      onChange={(e) => setNewPhrase(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newPhrase.trim()) {
+                          e.preventDefault();
+                          if (!customPhrases.includes(newPhrase.trim().toLowerCase())) {
+                            setCustomPhrases([...customPhrases, newPhrase.trim().toLowerCase()]);
+                          }
+                          setNewPhrase('');
+                        }
+                      }}
+                      placeholder="Thêm phrase tùy chỉnh..."
+                      className="flex-1 px-4 py-2 rounded-xl border border-slate-200 focus:border-indigo-600 outline-none text-sm font-medium"
+                    />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center">
-                    <MessageSquare className="w-4 h-4 mr-1" /> Sentences (Step 3)
+
+                {/* Sentences Section */}
+                <div className="space-y-4">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest flex items-center">
+                    <MessageSquare className="w-5 h-5 mr-2" /> Sentences (Step 3)
                   </label>
                   <div className="space-y-2">
-                    {extractedSentences.length > 0 ? extractedSentences.map((s, i) => (
-                      <div key={i} className="px-4 py-2 bg-slate-50 rounded-xl text-sm font-medium border border-slate-100 truncate">{s}</div>
-                    )) : <p className="text-xs text-slate-400 italic">Nhập từ vựng để tách câu...</p>}
+                    {customSentences.map((s, i) => (
+                      <div key={i} className="flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-xl text-sm font-bold border border-slate-100 group transition-colors">
+                        <span className="flex-1">{s}</span>
+                        <button 
+                          onClick={() => setCustomSentences(prev => prev.filter((_, idx) => idx !== i))}
+                          className="text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      value={newSentence}
+                      onChange={(e) => setNewSentence(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newSentence.trim()) {
+                          e.preventDefault();
+                          if (!customSentences.includes(newSentence.trim())) {
+                            setCustomSentences([...customSentences, newSentence.trim()]);
+                          }
+                          setNewSentence('');
+                        }
+                      }}
+                      placeholder="Thêm câu tùy chỉnh..."
+                      className="flex-1 px-4 py-2 rounded-xl border border-slate-200 focus:border-indigo-600 outline-none text-sm font-medium"
+                    />
                   </div>
                 </div>
               </div>

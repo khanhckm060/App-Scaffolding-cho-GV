@@ -105,6 +105,10 @@ export interface WordAssessment {
   word: string;
   accuracyScore: number;      // 0-100
   errorType: 'None' | 'Mispronunciation' | 'Omission' | 'Insertion';
+  syllables?: {               // Added for syllable-level assessment
+    text: string;             // e.g., "pre" or "sent"
+    accuracyScore: number;
+  }[];
 }
 
 export interface PronunciationResult {
@@ -116,10 +120,11 @@ export interface PronunciationResult {
 }
 
 export interface SpeakingLessonExtras {
-  paragraph: string;          // Đoạn script
+  paragraph: string;          // Đoạn script original
+  cleanedParagraph: string;   // Script đã loại bỏ character markers
   speakingVocabulary: string[];       // Từ vựng cần phát âm đúng
-  phrases: string[];          // Auto-extracted phrases
-  sentences: string[];        // Auto-extracted sentences
+  phrases: string[];          // Extracted/Edited phrases
+  sentences: string[];        // Extracted/Edited sentences
   passingPercentages: {
     vocab: number;      // 0-100, ví dụ 80
     phrase: number;

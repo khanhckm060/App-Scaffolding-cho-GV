@@ -1,13 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
-import { Mic, CheckCircle2, ChevronRight, Award, History, Info, Play, Loader2, SkipForward, Check, X } from 'lucide-react';
+import { Mic, CheckCircle2, ChevronRight, Award, History, Info, Play, Loader2, SkipForward, Check, X, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Lesson, PronunciationResult } from '../types';
 import StepProgress from './speaking/StepProgress';
 import RecordButton from './speaking/RecordButton';
 import AssessmentResult from './speaking/AssessmentResult';
 import { mockAssessPronunciation } from '../utils/mockPronunciationAssessment';
+import { useSpeechSynthesis } from '../hooks/useSpeechSynthesis';
 import { cn } from '../lib/utils';
 
 interface StudentSpeakingExerciseProps {
@@ -40,6 +41,7 @@ const StudentSpeakingExercise: React.FC<StudentSpeakingExerciseProps> = ({
   const [attempts, setAttempts] = useState(0);
   const [loading, setLoading] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
+  const { speak, isSpeaking, supported } = useSpeechSynthesis();
 
   // Store results for each step
   const [stepResults, setStepResults] = useState<{
@@ -56,7 +58,7 @@ const StudentSpeakingExercise: React.FC<StudentSpeakingExerciseProps> = ({
     if (currentStep === 1) return extras.speakingVocabulary;
     if (currentStep === 2) return extras.phrases;
     if (currentStep === 3) return extras.sentences;
-    return [extras.paragraph];
+    return [extras.cleanedParagraph || extras.paragraph];
   }, [currentStep, extras]);
 
   const currentItem = items[currentItemIndex];
@@ -145,38 +147,42 @@ const StudentSpeakingExercise: React.FC<StudentSpeakingExerciseProps> = ({
       const s1Avg = calculateAvg(stepResults.step1);
       const s2Avg = calculateAvg(stepResults.step2);
       const s3Avg = calculateAvg(stepResults.step3);
-      const s4Score = stepResults.step4?.pronunciationScore || 0;
+      const s4Score = stepResults.step4?.accuracyScore || 0;
+      const s4Fluency = stepResults.step4?.fluencyScore || 0;
 
-      // Overall Score Out of 10
+      // Overall Score Out of 100
+      // Step 1: 15%, Step 2: 20%, Step 3: 25%, Step 4: 40% (split into Pronunciation 25% + Fluency 15%)
       const overallScore = Math.round(
-        (s1Avg * 0.2 + s2Avg * 0.2 + s3Avg * 0.2 + s4Score * 0.4) / 10
+        (s1Avg * 0.15 + s2Avg * 0.20 + s3Avg * 0.25 + s4Score * 0.25 + s4Fluency * 0.15)
       );
 
-      await addDoc(collection(db, 'speaking_submissions'), {
+      const submissionData = {
         lessonId: lesson.id,
         assignmentId: assignmentId || '',
         studentEmail: studentEmail.toLowerCase().trim(),
         studentName,
         score: overallScore,
-        details: stepResults,
+        details: {
+          step1: stepResults.step1,
+          step2: stepResults.step2,
+          step3: stepResults.step3,
+          step4: stepResults.step4
+        },
         completedAt: new Date().toISOString()
-      });
+      };
+
+      await addDoc(collection(db, 'speaking_submissions'), submissionData);
       
       // Also save to generic results for compatibility
       await addDoc(collection(db, 'results'), {
-        lessonId: lesson.id,
-        assignmentId: assignmentId || '',
-        studentEmail: studentEmail.toLowerCase().trim(),
-        studentName,
-        score: overallScore,
-        details: { speaking: true, ...stepResults },
-        completedAt: new Date().toISOString()
+        ...submissionData,
+        details: { speaking: true, ...submissionData.details }
       });
 
       onComplete();
     } catch (error) {
       console.error("Error submitting results:", error);
-      alert("Lỗi khi lưu kết quả.");
+      alert("Lỗi khi lưu kết quả. Vui lòng kiểm tra kết nối mạng và thử lại.");
     } finally {
       setLoading(false);
     }
@@ -331,9 +337,24 @@ const StudentSpeakingExercise: React.FC<StudentSpeakingExerciseProps> = ({
                  currentStep === 3 ? `Luyện câu ${currentItemIndex + 1}/${items.length}` :
                  'Thử thách cuối cùng'}
               </span>
-              <h3 className="text-4xl md:text-5xl font-extrabold text-slate-900 leading-tight">
+              <h3 className="text-4xl md:text-5xl font-extrabold text-slate-900 leading-tight mb-6">
                 {currentItem}
               </h3>
+              
+              {supported && (
+                <button 
+                  onClick={() => speak(currentItem)}
+                  className={cn(
+                    "inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl font-bold transition-all",
+                    isSpeaking 
+                      ? "bg-indigo-100 text-indigo-700 animate-pulse" 
+                      : "bg-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600"
+                  )}
+                >
+                  <Volume2 className={cn("w-5 h-5", isSpeaking && "animate-bounce")} />
+                  {isSpeaking ? "Đang phát..." : "Nghe mẫu"}
+                </button>
+              )}
             </div>
 
             <RecordButton 

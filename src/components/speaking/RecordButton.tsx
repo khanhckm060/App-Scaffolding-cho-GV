@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mic, Square, RotateCcw, Play, Loader2, AlertCircle } from 'lucide-react';
+import { Mic, Square, RotateCcw, Play, Loader2, AlertCircle, Check } from 'lucide-react';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import { cn } from '../../lib/utils';
 import { PronunciationResult } from '../../types';
@@ -32,7 +32,6 @@ const RecordButton: React.FC<RecordButtonProps> = ({
   } = useAudioRecorder();
 
   const [isAssessing, setIsAssessing] = useState(false);
-  const [playbackAudio, setPlaybackAudio] = useState<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
   // Stop recording automatically if maxDuration reached
@@ -47,34 +46,55 @@ const RecordButton: React.FC<RecordButtonProps> = ({
     await startRecording();
   };
 
-  const handleAssess = async () => {
-    if (!audioBlob) return;
-    setIsAssessing(true);
-    try {
-      const result = await onAssess(audioBlob);
-      onResult(result);
-      if (onRecorded) onRecorded(audioBlob);
-    } catch (err) {
-      console.error("Assessment failed:", err);
-    } finally {
-      setIsAssessing(false);
+  // Trigger assessment automatically when recording stops and audioBlob is available
+  useEffect(() => {
+    let active = true;
+    
+    if (!isRecording && audioBlob && !isAssessing) {
+      const triggerAssessment = async () => {
+        setIsAssessing(true);
+        try {
+          const result = await onAssess(audioBlob);
+          if (active) {
+            onResult(result);
+            if (onRecorded) onRecorded(audioBlob);
+          }
+        } catch (err) {
+          console.error("Assessment failed:", err);
+        } finally {
+          if (active) setIsAssessing(false);
+        }
+      };
+      
+      triggerAssessment();
     }
-  };
+
+    return () => { active = false; };
+  }, [isRecording, audioBlob, onAssess, onResult, onRecorded]);
 
   const togglePlayback = () => {
     if (!audioUrl) return;
     
-    if (isPlaying && playbackAudio) {
-      playbackAudio.pause();
+    if (isPlaying) {
+      window.audioPlayback?.pause();
       setIsPlaying(false);
     } else {
       const audio = new Audio(audioUrl);
+      window.audioPlayback = audio; 
       audio.onended = () => setIsPlaying(false);
       audio.play();
-      setPlaybackAudio(audio);
       setIsPlaying(true);
     }
   };
+
+  // Add type definition for window with audioPlayback
+  useEffect(() => {
+    return () => {
+      if (window.audioPlayback) {
+        window.audioPlayback.pause();
+      }
+    };
+  }, []);
 
   if (error) {
     return (
@@ -97,7 +117,7 @@ const RecordButton: React.FC<RecordButtonProps> = ({
   return (
     <div className="flex flex-col items-center">
       <AnimatePresence mode="wait">
-        {!isRecording && !audioBlob && (
+        {!isRecording && !audioBlob && !isAssessing && (
           <motion.div 
             key="idle"
             initial={{ opacity: 0, scale: 0.9 }}
@@ -145,54 +165,44 @@ const RecordButton: React.FC<RecordButtonProps> = ({
           </motion.div>
         )}
 
-        {!isRecording && audioBlob && !isAssessing && (
+        {(isAssessing || (!isRecording && audioBlob)) && (
           <motion.div 
-            key="recorded"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="flex flex-col items-center w-full max-w-xs"
-          >
-            <div className="flex gap-4 mb-6">
-              <button 
-                onClick={togglePlayback}
-                className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-all"
-              >
-                {isPlaying ? <Square className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 fill-current" />}
-              </button>
-              <button 
-                onClick={handleStart}
-                className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-all"
-              >
-                <RotateCcw className="w-6 h-6" />
-              </button>
-            </div>
-            
-            <button 
-              onClick={handleAssess}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-4 rounded-2xl shadow-lg shadow-indigo-100 transition-all flex items-center justify-center"
-            >
-              🚀 Gửi đánh giá
-            </button>
-          </motion.div>
-        )}
-
-        {isAssessing && (
-          <motion.div 
-            key="assessing"
+            key="processing"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="flex flex-col items-center"
           >
             <div className="w-24 h-24 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-              <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+              {isAssessing ? (
+                <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+              ) : (
+                <Check className="w-10 h-10 text-emerald-500" />
+              )}
             </div>
-            <span className="text-slate-500 font-bold animate-pulse">Hệ thống đang phân tích...</span>
+            <span className="text-slate-500 font-bold animate-pulse">
+              {isAssessing ? "Đang phân tích phát âm..." : "Đang tải kết quả..."}
+            </span>
+            
+            {!isAssessing && audioUrl && (
+              <button 
+                onClick={togglePlayback}
+                className="mt-6 flex items-center gap-2 text-slate-400 hover:text-indigo-600 font-bold transition-all text-sm"
+              >
+                {isPlaying ? <Square className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
+                {isPlaying ? "Đang phát bài trả lời của bạn..." : "Nghe lại bản ghi của bạn"}
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
     </div>
   );
 };
+
+declare global {
+  interface Window {
+    audioPlayback?: HTMLAudioElement;
+  }
+}
 
 export default RecordButton;

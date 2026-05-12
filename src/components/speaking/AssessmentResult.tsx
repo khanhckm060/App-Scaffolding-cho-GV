@@ -73,24 +73,47 @@ const AssessmentResult: React.FC<AssessmentResultProps> = ({
 
         {/* Word Breakdown */}
         <div className="w-full mb-8">
-          <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">Chi tiết từng từ:</h4>
-          <div className="flex flex-wrap gap-2 justify-center">
-            {result.words.map((word, idx) => (
+          <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4 text-center">Chi tiết phát âm:</h4>
+          <div className="flex flex-wrap gap-3 justify-center">
+            {result.words.map((wordAssess, idx) => (
               <div 
                 key={idx}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-sm font-semibold transition-all relative group",
-                  word.accuracyScore >= 90 ? "bg-emerald-50 text-emerald-700" :
-                  word.accuracyScore >= 70 ? "bg-amber-50 text-amber-700" :
-                  "bg-rose-50 text-rose-700 border-b-2 border-rose-300"
-                )}
+                className="inline-flex items-center gap-0.5 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100 group relative"
               >
-                {word.word}
-                {/* Tooltip */}
+                {wordAssess.syllables && wordAssess.syllables.length > 1 ? (
+                  // Render từng syllable với màu riêng
+                  wordAssess.syllables.map((syl, sylIdx) => (
+                    <span
+                      key={sylIdx}
+                      className={cn(
+                        "font-bold px-1 rounded transition-colors",
+                        syl.accuracyScore >= 80 ? "text-emerald-700 bg-emerald-50" :
+                        syl.accuracyScore >= 60 ? "text-amber-700 bg-amber-50" :
+                        "text-rose-700 bg-rose-50 underline decoration-rose-300 decoration-wavy"
+                      )}
+                    >
+                      {syl.text}
+                    </span>
+                  ))
+                ) : (
+                  // Fallback: render cả word
+                  <span
+                    className={cn(
+                      "font-bold px-1 rounded transition-colors",
+                      wordAssess.accuracyScore >= 80 ? "text-emerald-700 bg-emerald-50" :
+                      wordAssess.accuracyScore >= 60 ? "text-amber-700 bg-amber-50" :
+                      "text-rose-700 bg-rose-50"
+                    )}
+                  >
+                    {wordAssess.word}
+                  </span>
+                )}
+
+                {/* Tooltip for the whole word */}
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20 w-40">
                   <div className="bg-slate-900 text-white text-[10px] p-2 rounded-lg shadow-xl">
-                    <p className="font-bold">Độ chính xác: {word.accuracyScore}%</p>
-                    {word.errorType !== 'None' && <p className="text-rose-400 mt-1">Lỗi: {word.errorType}</p>}
+                    <p className="font-bold">{wordAssess.word}: {wordAssess.accuracyScore}%</p>
+                    {wordAssess.errorType !== 'None' && <p className="text-rose-400 mt-1">Lỗi: {wordAssess.errorType}</p>}
                   </div>
                   <div className="w-2 h-2 bg-slate-900 rotate-45 absolute left-1/2 -translate-x-1/2 -bottom-1"></div>
                 </div>
