@@ -1168,24 +1168,19 @@ export default function TeacherDashboard() {
                         <span className="font-bold text-slate-900">Nghe</span>
                       </button>
                       
-                      {auth.currentUser?.email === 'khanhckm060@gmail.com' ? (
-                        <button
-                          onClick={() => setAssignCategory('reading')}
-                          className="flex flex-col items-center p-6 rounded-2xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
-                        >
-                          <div className="bg-indigo-100 p-4 rounded-xl mb-3 group-hover:bg-indigo-600 transition-colors">
-                            <BookOpen className="w-6 h-6 text-indigo-600 group-hover:text-white" />
-                          </div>
-                          <span className="font-bold text-slate-900">Đọc</span>
-                        </button>
-                      ) : (
-                        <div className="flex flex-col items-center p-6 rounded-2xl border-2 border-slate-100 opacity-50 grayscale cursor-not-allowed">
-                          <div className="bg-slate-100 p-4 rounded-xl mb-3">
-                            <BookOpen className="w-6 h-6 text-slate-400" />
-                          </div>
-                          <span className="font-bold text-slate-400">Đọc (Locked)</span>
+                      <button
+                        className="flex flex-col items-center p-6 rounded-2xl border-2 border-slate-100 transition-all opacity-60 cursor-not-allowed relative"
+                        title="Tính năng đang phát triển"
+                        disabled
+                      >
+                        <div className="absolute top-1 right-1 bg-indigo-100 text-indigo-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                          Coming soon
                         </div>
-                      )}
+                        <div className="bg-indigo-100 p-4 rounded-xl mb-3">
+                          <BookOpen className="w-6 h-6 text-indigo-600" />
+                        </div>
+                        <span className="font-bold text-slate-900">Đọc</span>
+                      </button>
 
                       <button
                         onClick={() => setAssignCategory('writing')}
@@ -1420,25 +1415,19 @@ export default function TeacherDashboard() {
                   <span className="text-xl font-bold text-slate-900">Nghe</span>
                 </Link>
 
-                {auth.currentUser?.email === 'khanhckm060@gmail.com' ? (
-                  <Link 
-                    to="/teacher/new/reading"
-                    onClick={() => setShowCreateTypeModal(false)}
-                    className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group"
-                  >
-                    <div className="bg-indigo-100 p-4 rounded-2xl mb-4 group-hover:bg-indigo-600 transition-colors">
-                      <BookOpen className="w-8 h-8 text-indigo-600 group-hover:text-white" />
-                    </div>
-                    <span className="text-xl font-bold text-slate-900">Đọc</span>
-                  </Link>
-                ) : (
-                  <div className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 opacity-50 grayscale cursor-not-allowed">
-                    <div className="bg-slate-100 p-4 rounded-2xl mb-4">
-                      <BookOpen className="w-8 h-8 text-slate-400" />
-                    </div>
-                    <span className="text-xl font-bold text-slate-400">Đọc (Locked)</span>
+                <button 
+                  className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 transition-all opacity-60 cursor-not-allowed relative"
+                  title="Tính năng đang phát triển"
+                  disabled
+                >
+                  <div className="absolute top-2 right-2 bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-1 rounded-full">
+                    Coming soon
                   </div>
-                )}
+                  <div className="bg-indigo-100 p-4 rounded-2xl mb-4">
+                    <BookOpen className="w-8 h-8 text-indigo-600" />
+                  </div>
+                  <span className="text-xl font-bold text-slate-900">Đọc</span>
+                </button>
 
                 <button 
                   className="flex flex-col items-center p-8 rounded-3xl border-2 border-slate-100 hover:border-indigo-600 hover:bg-indigo-50 transition-all group opacity-60 cursor-not-allowed"
