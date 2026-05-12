@@ -3,6 +3,10 @@ import { getDb, admin } from './_lib/firebaseAdmin.js';
 import { sendEmailBatch } from './_lib/resend.js';
 import { buildReminderEmail } from './_lib/emailTemplates.js';
 
+// ⚠️ IMPORTANT: All local imports in /api/ MUST use `.js` extension (NOT `.ts`)
+// This is required for Vercel ESM runtime compatibility.
+// DO NOT change `.js` to `.ts` - it will break production deployment.
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Cron security check
   const authHeader = req.headers.authorization;
