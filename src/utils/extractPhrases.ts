@@ -1,46 +1,34 @@
 /**
- * Tách paragraph thành các phrases (cụm 2-5 từ) chứa vocabulary.
- * Ví dụ: paragraph="I want to buy a present for my mom", vocab=["present", "buy"]
- * → phrases=["want to buy", "buy a present", "a present for"]
+ * Extract phrases (2-4 từ) chứa vocabulary từ paragraph.
+ * Phrase = consecutive words trong paragraph, có chứa ít nhất 1 vocab.
+ * Loại bỏ duplicates.
  */
 export function extractPhrases(paragraph: string, vocabulary: string[]): string[] {
   if (!paragraph || !vocabulary || vocabulary.length === 0) return [];
 
-  const sentences = paragraph.split(/[.!?]+/).filter(s => s.trim().length > 0);
-  const phrasesSet = new Set<string>();
-
-  sentences.forEach(sentence => {
-    const words = sentence.trim().split(/\s+/);
-    
-    vocabulary.forEach(vocab => {
-      const vocabLower = vocab.toLowerCase();
-      
-      words.forEach((word, index) => {
-        // Simple match, ignoring punctuation at the end of words
-        const cleanWord = word.replace(/[.,!?;:()]/g, "").toLowerCase();
-        
-        if (cleanWord === vocabLower) {
-          // Take 1-2 words before and 1-2 words after
-          // Try to get a 3-word phrase if possible
-          
-          // Pattern [prev, word, next]
-          if (index > 0 && index < words.length - 1) {
-            phrasesSet.add(`${words[index-1]} ${words[index]} ${words[index+1]}`.replace(/[.,!?;:()]/g, ""));
-          }
-          
-          // Pattern [word, next, nextNext]
-          if (index < words.length - 2) {
-            phrasesSet.add(`${words[index]} ${words[index+1]} ${words[index+2]}`.replace(/[.,!?;:()]/g, ""));
-          }
-
-          // Pattern [prevPrev, prev, word]
-          if (index > 1) {
-            phrasesSet.add(`${words[index-2]} ${words[index-1]} ${words[index]}`.replace(/[.,!?;:()]/g, ""));
+  const cleanText = paragraph.replace(/[.,!?;:"]/g, '').toLowerCase();
+  const words = cleanText.split(/\s+/).filter(w => w.length > 0);
+  const vocabLower = vocabulary.map(v => v.toLowerCase());
+  const phrases = new Set<string>();
+  
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    if (vocabLower.includes(word)) {
+      // Create phrases with lengths 2, 3, 4 that include the current word
+      for (let len = 2; len <= 4; len++) {
+        for (let s = Math.max(0, i - (len - 1)); s <= i; s++) {
+          if (s + len <= words.length) {
+            const phraseWords = words.slice(s, s + len);
+            const phrase = phraseWords.join(' ');
+            if (phrase.split(' ').length === len) {
+              phrases.add(phrase);
+            }
           }
         }
-      });
-    });
-  });
-
-  return Array.from(phrasesSet).slice(0, 10); // Limit to 10 phrases
+      }
+    }
+  }
+  
+  // Return a diverse selection, but limit the number
+  return Array.from(phrases).slice(0, 15);
 }

@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
-import { Mic, CheckCircle2, ChevronRight, Award, History, Info, Play, Loader2 } from 'lucide-react';
+import { Mic, CheckCircle2, ChevronRight, Award, History, Info, Play, Loader2, SkipForward, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Lesson, Assignment, PronunciationResult, SpeakingSubmission } from '../types';
+import { Lesson, PronunciationResult } from '../types';
 import StepProgress from './speaking/StepProgress';
 import RecordButton from './speaking/RecordButton';
 import AssessmentResult from './speaking/AssessmentResult';
@@ -18,6 +18,13 @@ interface StudentSpeakingExerciseProps {
   onComplete: () => void;
 }
 
+interface StepItemResult {
+  item: string;
+  passed: boolean;
+  skipped: boolean;
+  bestScore: number;
+}
+
 const StudentSpeakingExercise: React.FC<StudentSpeakingExerciseProps> = ({
   lesson,
   assignmentId,
@@ -25,94 +32,151 @@ const StudentSpeakingExercise: React.FC<StudentSpeakingExerciseProps> = ({
   studentName,
   onComplete
 }) => {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+  const [currentItemIndex, setCurrentItemIndex] = useState(0);
   const [isStarted, setIsStarted] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [currentResult, setCurrentResult] = useState<PronunciationResult | null>(null);
   const [attempts, setAttempts] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [isFinished, setIsFinished] = useState(false);
 
-  // Store all results for submission
-  const [step1Results, setStep1Results] = useState<PronunciationResult[]>([]);
-  const [step2Results, setStep2Results] = useState<PronunciationResult[]>([]);
-  const [step3Results, setStep3Results] = useState<PronunciationResult[]>([]);
-  const [step4Result, setStep4Result] = useState<PronunciationResult | null>(null);
+  // Store results for each step
+  const [stepResults, setStepResults] = useState<{
+    step1: StepItemResult[];
+    step2: StepItemResult[];
+    step3: StepItemResult[];
+    step4: PronunciationResult | null;
+  }>({ step1: [], step2: [], step3: [], step4: null });
 
   const extras = lesson.speakingExtras;
   if (!extras) return <div>Invalid speaking lesson data.</div>;
 
-  const currentItems = step === 1 ? extras.speakingVocabulary : 
-                       step === 2 ? extras.phrases : 
-                       step === 3 ? extras.sentences : 
-                       [extras.paragraph];
+  const items = useMemo(() => {
+    if (currentStep === 1) return extras.speakingVocabulary;
+    if (currentStep === 2) return extras.phrases;
+    if (currentStep === 3) return extras.sentences;
+    return [extras.paragraph];
+  }, [currentStep, extras]);
 
-  const currentTarget = currentItems[currentIndex];
+  const currentItem = items[currentItemIndex];
   
-  const currentPassingScore = step === 1 ? extras.passingPercentages.vocab :
-                              step === 2 ? extras.passingPercentages.phrase :
-                              step === 3 ? extras.passingPercentages.sentence :
-                              extras.passingPercentages.pronunciation;
+  const passingScore = useMemo(() => {
+    if (currentStep === 1) return extras.passingPercentages.vocab;
+    if (currentStep === 2) return extras.passingPercentages.phrase;
+    if (currentStep === 3) return extras.passingPercentages.sentence;
+    return extras.passingPercentages.pronunciation;
+  }, [currentStep, extras]);
 
   const handleAssessmentResult = (result: PronunciationResult) => {
     setCurrentResult(result);
     setShowResult(true);
+
+    // If passed, auto-continue after 1.5s
+    if (result.accuracyScore >= passingScore) {
+      if (currentStep < 4 || (result.fluencyScore >= extras.passingPercentages.fluency)) {
+        setTimeout(() => {
+          if (showResult) handleContinue(result);
+        }, 1500);
+      }
+    }
   };
 
-  const handleContinue = () => {
-    if (!currentResult) return;
+  const handleContinue = (resultOverride?: PronunciationResult) => {
+    const resultToUse = resultOverride || currentResult;
+    if (!resultToUse) return;
 
-    // Save result to respective step array
-    if (step === 1) setStep1Results([...step1Results, currentResult]);
-    if (step === 2) setStep2Results([...step2Results, currentResult]);
-    if (step === 3) setStep3Results([...step3Results, currentResult]);
-    if (step === 4) setStep4Result(currentResult);
+    const passed = resultToUse.accuracyScore >= passingScore;
+    
+    // Save result
+    const newResult: StepItemResult = {
+      item: currentItem,
+      passed,
+      skipped: false,
+      bestScore: resultToUse.accuracyScore
+    };
 
+    if (currentStep === 1) setStepResults(prev => ({ ...prev, step1: [...prev.step1, newResult] }));
+    else if (currentStep === 2) setStepResults(prev => ({ ...prev, step2: [...prev.step2, newResult] }));
+    else if (currentStep === 3) setStepResults(prev => ({ ...prev, step3: [...prev.step3, newResult] }));
+    else if (currentStep === 4) setStepResults(prev => ({ ...prev, step4: resultToUse }));
+
+    proceed();
+  };
+
+  const handleSkip = () => {
+    const skipResult: StepItemResult = {
+      item: currentItem,
+      passed: false,
+      skipped: true,
+      bestScore: 0
+    };
+
+    if (currentStep === 1) setStepResults(prev => ({ ...prev, step1: [...prev.step1, skipResult] }));
+    else if (currentStep === 2) setStepResults(prev => ({ ...prev, step2: [...prev.step2, skipResult] }));
+    else if (currentStep === 3) setStepResults(prev => ({ ...prev, step3: [...prev.step3, skipResult] }));
+    
+    proceed();
+  };
+
+  const proceed = () => {
     setShowResult(false);
     setCurrentResult(null);
     setAttempts(0);
 
-    if (step < 4) {
-      if (currentIndex < currentItems.length - 1) {
-        setCurrentIndex(currentIndex + 1);
-      } else {
-        setStep((step + 1) as any);
-        setCurrentIndex(0);
-      }
+    if (currentItemIndex < items.length - 1) {
+      setCurrentItemIndex(currentItemIndex + 1);
     } else {
-      submitResults();
+      if (currentStep < 4) {
+        setCurrentStep((currentStep + 1) as any);
+        setCurrentItemIndex(0);
+      } else {
+        setIsFinished(true);
+      }
     }
   };
 
   const submitResults = async () => {
     setLoading(true);
     try {
-      const overallScore = Math.round(
-        (step1Results.reduce((a, b) => a + b.accuracyScore, 0) / step1Results.length * 0.2) +
-        (step2Results.reduce((a, b) => a + b.accuracyScore, 0) / step2Results.length * 0.2) +
-        (step3Results.reduce((a, b) => a + b.accuracyScore, 0) / step3Results.length * 0.2) +
-        ((step4Result?.pronunciationScore || 0) * 0.4)
-      ) / 10; // Out of 10
+      const calculateAvg = (results: StepItemResult[]) => 
+        results.length > 0 ? results.reduce((a, b) => a + b.bestScore, 0) / results.length : 0;
 
+      const s1Avg = calculateAvg(stepResults.step1);
+      const s2Avg = calculateAvg(stepResults.step2);
+      const s3Avg = calculateAvg(stepResults.step3);
+      const s4Score = stepResults.step4?.pronunciationScore || 0;
+
+      // Overall Score Out of 10
+      const overallScore = Math.round(
+        (s1Avg * 0.2 + s2Avg * 0.2 + s3Avg * 0.2 + s4Score * 0.4) / 10
+      );
+
+      await addDoc(collection(db, 'speaking_submissions'), {
+        lessonId: lesson.id,
+        assignmentId: assignmentId || '',
+        studentEmail: studentEmail.toLowerCase().trim(),
+        studentName,
+        score: overallScore,
+        details: stepResults,
+        completedAt: new Date().toISOString()
+      });
+      
+      // Also save to generic results for compatibility
       await addDoc(collection(db, 'results'), {
         lessonId: lesson.id,
         assignmentId: assignmentId || '',
         studentEmail: studentEmail.toLowerCase().trim(),
         studentName,
         score: overallScore,
-        details: {
-          speaking: true,
-          step1: step1Results,
-          step2: step2Results,
-          step3: step3Results,
-          step4: step4Result
-        },
+        details: { speaking: true, ...stepResults },
         completedAt: new Date().toISOString()
       });
+
       onComplete();
     } catch (error) {
-      console.error("Error submitting speaking results:", error);
-      alert("Lỗi khi lưu kết quả. Vui lòng thử lại.");
+      console.error("Error submitting results:", error);
+      alert("Lỗi khi lưu kết quả.");
     } finally {
       setLoading(false);
     }
@@ -183,10 +247,71 @@ const StudentSpeakingExercise: React.FC<StudentSpeakingExerciseProps> = ({
     );
   }
 
+  if (isFinished) {
+    const s1Passed = stepResults.step1.filter(r => r.passed).length;
+    const s2Passed = stepResults.step2.filter(r => r.passed).length;
+    const s3Passed = stepResults.step3.filter(r => r.passed).length;
+
+    return (
+      <div className="max-w-3xl mx-auto py-12 px-4">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-[2rem] p-10 border border-slate-200 shadow-xl text-center"
+        >
+          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600">
+            <Award className="w-12 h-12" />
+          </div>
+          <h2 className="text-3xl font-extrabold text-slate-900 mb-2">Hoàn thành bài luyện tập!</h2>
+          <p className="text-slate-500 font-bold mb-10">Chúc mừng bạn đã nỗ lực luyện phát âm hôm nay.</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10 text-left">
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+              <span className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Step 1: Từ vựng</span>
+              <div className="flex justify-between items-center">
+                <span className="text-xl font-bold text-slate-700">{s1Passed}/{stepResults.step1.length} đạt</span>
+                <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+              </div>
+            </div>
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+              <span className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Step 2: Cụm từ</span>
+              <div className="flex justify-between items-center">
+                <span className="text-xl font-bold text-slate-700">{s2Passed}/{stepResults.step2.length} đạt</span>
+                <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+              </div>
+            </div>
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+              <span className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Step 3: Câu</span>
+              <div className="flex justify-between items-center">
+                <span className="text-xl font-bold text-slate-700">{s3Passed}/{stepResults.step3.length} đạt</span>
+                <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+              </div>
+            </div>
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+              <span className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Step 4: Tổng quát</span>
+              <div className="flex justify-between items-center">
+                <span className="text-xl font-bold text-slate-700">{stepResults.step4?.pronunciationScore}% Phát âm</span>
+                <span className="text-lg font-bold text-indigo-600">{stepResults.step4?.fluencyScore}% Trôi chảy</span>
+              </div>
+            </div>
+          </div>
+
+          <button 
+            onClick={submitResults}
+            disabled={loading}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-5 rounded-2xl shadow-xl transition-all flex items-center justify-center text-xl disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : "Nộp kết quả & Kết thúc"}
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto py-12 px-4">
       <StepProgress 
-        currentStep={step} 
+        currentStep={currentStep} 
         stepLabels={['Từ vựng', 'Cụm từ', 'Câu', 'Đoạn văn']} 
       />
 
@@ -201,26 +326,26 @@ const StudentSpeakingExercise: React.FC<StudentSpeakingExerciseProps> = ({
           >
             <div className="text-center mb-12 max-w-2xl">
               <span className="inline-block px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-black uppercase tracking-widest mb-4">
-                {step === 1 ? `Luyện từ ${currentIndex + 1}/${currentItems.length}` : 
-                 step === 2 ? `Luyện cụm từ ${currentIndex + 1}/${currentItems.length}` :
-                 step === 3 ? `Luyện câu ${currentIndex + 1}/${currentItems.length}` :
+                {currentStep === 1 ? `Luyện từ ${currentItemIndex + 1}/${items.length}` : 
+                 currentStep === 2 ? `Luyện cụm từ ${currentItemIndex + 1}/${items.length}` :
+                 currentStep === 3 ? `Luyện câu ${currentItemIndex + 1}/${items.length}` :
                  'Thử thách cuối cùng'}
               </span>
               <h3 className="text-4xl md:text-5xl font-extrabold text-slate-900 leading-tight">
-                {currentTarget}
+                {currentItem}
               </h3>
             </div>
 
             <RecordButton 
-              targetText={currentTarget}
-              onAssess={(blob) => mockAssessPronunciation(blob, currentTarget)}
+              targetText={currentItem}
+              onAssess={(blob) => mockAssessPronunciation(blob, currentItem)}
               onResult={handleAssessmentResult}
             />
 
             <div className="mt-20 flex gap-12 items-center">
               <div className="flex flex-col items-center">
                 <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-indigo-600 font-black mb-2 shadow-sm">
-                  {currentPassingScore}%
+                  {passingScore}%
                 </div>
                 <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Yêu cầu đạt</span>
               </div>
@@ -240,24 +365,27 @@ const StudentSpeakingExercise: React.FC<StudentSpeakingExerciseProps> = ({
             exit={{ opacity: 0, y: -20 }}
           >
             {currentResult && (
-              <AssessmentResult 
-                result={currentResult}
-                passingScore={currentPassingScore}
-                showFluency={step === 4}
-                attemptsLeft={3 - attempts}
-                onRetry={() => {
-                  setAttempts(prev => prev + 1);
-                  setShowResult(false);
-                }}
-                onContinue={handleContinue}
-              />
-            )}
-            {loading && (
-              <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
-                <div className="flex flex-col items-center">
-                  <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
-                  <p className="font-bold text-slate-600">Đang lưu kết quả...</p>
-                </div>
+              <div className="space-y-6">
+                <AssessmentResult 
+                  result={currentResult}
+                  passingScore={passingScore}
+                  showFluency={currentStep === 4}
+                  attemptsLeft={3 - attempts}
+                  onRetry={() => {
+                    setAttempts(prev => prev + 1);
+                    setShowResult(false);
+                  }}
+                  onContinue={() => handleContinue()}
+                />
+                
+                {!currentResult.accuracyScore || (currentResult.accuracyScore < passingScore && attempts >= 2 && currentStep < 4 && (
+                  <button 
+                    onClick={handleSkip}
+                    className="w-full max-w-xl mx-auto flex items-center justify-center text-slate-400 hover:text-slate-600 font-bold transition-colors"
+                  >
+                    Bỏ qua từ này <SkipForward className="w-5 h-5 ml-2" />
+                  </button>
+                ))}
               </div>
             )}
           </motion.div>

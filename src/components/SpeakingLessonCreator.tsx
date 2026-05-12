@@ -40,13 +40,25 @@ const SpeakingLessonCreator: React.FC = () => {
     }
   }, [paragraph, vocabulary]);
 
+  const STOP_WORDS = ['a', 'an', 'the', 'is', 'are', 'was', 'were', 'to', 'of', 'in', 'on', 'for', 'my'];
+
   const handleAddVocab = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && vocabInput.trim()) {
       e.preventDefault();
-      const newVocab = vocabInput.trim();
-      if (!vocabulary.includes(newVocab)) {
-        setVocabulary([...vocabulary, newVocab]);
-      }
+      
+      // Split by spaces, lowercase, and filter
+      const words = vocabInput.toLowerCase().split(/\s+/)
+        .map(w => w.replace(/[.,!?;:()]/g, "").trim())
+        .filter(w => w.length > 0 && !STOP_WORDS.includes(w));
+      
+      const newVocab = [...vocabulary];
+      words.forEach(word => {
+        if (!newVocab.includes(word)) {
+          newVocab.push(word);
+        }
+      });
+      
+      setVocabulary(newVocab);
       setVocabInput('');
     }
   };
@@ -56,13 +68,27 @@ const SpeakingLessonCreator: React.FC = () => {
   };
 
   const isVocabInParagraph = (word: string) => {
-    const regex = new RegExp(`\\b${word}\\b`, 'i');
-    return regex.test(paragraph);
+    const cleanParagraph = paragraph.toLowerCase().replace(/[.,!?;:()]/g, " ");
+    const wordsInPara = cleanParagraph.split(/\s+/);
+    return wordsInPara.includes(word.toLowerCase());
   };
 
   const handleSave = async () => {
     if (!title || !paragraph || vocabulary.length === 0) {
       alert("Vui lòng điền đầy đủ thông tin (Tiêu đề, Paragraph, ít nhất 1 từ vựng)");
+      return;
+    }
+
+    // Validation: Each vocab must be a single word (no spaces)
+    if (vocabulary.some(v => v.includes(' '))) {
+      alert("Mỗi từ khóa vocabulary phải là một từ đơn lẻ (không chứa dấu cách).");
+      return;
+    }
+
+    // Validation: All vocab must be in paragraph
+    const missingVocab = vocabulary.find(v => !isVocabInParagraph(v));
+    if (missingVocab) {
+      alert(`Từ '${missingVocab}' không có trong đoạn văn. Vui lòng kiểm tra lại.`);
       return;
     }
 
